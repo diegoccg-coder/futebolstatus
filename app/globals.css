@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #022c22;
+  --surface: #064e3b;
+  --surface2: #065f46;
+  --text: #ecfdf5;
+  --muted: #a7f3d0;
+  --accent: #fbbf24;
+}
+
+body {
+  @apply min-h-screen bg-pitch-950 text-pitch-50 antialiased;
+  background-image: radial-gradient(
+      ellipse 120% 80% at 50% -20%,
+      rgba(16, 185, 129, 0.25),
+      transparent
+    ),
+    linear-gradient(180deg, #022c22 0%, #064e3b 100%);
+}
