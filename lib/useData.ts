@@ -18,7 +18,16 @@ export function useAppData() {
         await signOut({ callbackUrl: "/login" });
         return;
       }
-      if (!r.ok) throw new Error("Falha ao carregar dados");
+      if (!r.ok) {
+        let msg = "Falha ao carregar dados";
+        try {
+          const j = (await r.json()) as { error?: string };
+          if (j?.error && typeof j.error === "string") msg = j.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
       const j = (await r.json()) as AppDataClient;
       setData({
         ...j,

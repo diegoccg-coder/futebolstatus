@@ -46,7 +46,11 @@ export async function readDb(): Promise<AppData> {
     const parsed = (rowData ?? defaultData) as Partial<AppData>;
     const { data, dirty } = migrateAppData(parsed);
     if (dirty) {
-      await writeDb(data);
+      try {
+        await writeDb(data);
+      } catch (e) {
+        console.error("writeDb após migrate:", e);
+      }
     }
     return data;
   }
@@ -72,9 +76,12 @@ export async function readDb(): Promise<AppData> {
 
 export async function writeDb(data: AppData): Promise<void> {
   if (isSupabaseConfigured() && supabaseAdmin) {
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from(SUPA_TABLE)
       .upsert({ id: SUPA_STATE_ID, data }, { onConflict: "id" });
+    if (error) {
+      throw new Error(error.message || "Erro ao gravar no Supabase");
+    }
     return;
   }
 
