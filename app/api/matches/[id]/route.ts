@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth-server";
+import {
+  fieldPlayerIdsOnMatch,
+  rachaDraftGoleiroPlayerIds,
+  rachaDraftLinhaPlayerIds,
+} from "@/lib/matchUi";
 import { newId, readDb, writeDb } from "@/lib/store";
-import type { Goal, Match, MatchTeamSlot } from "@/lib/types";
+import type { AppData, Goal, Match, MatchTeamSlot } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -20,6 +25,10 @@ function playerIdsEligibleForCards(m: Match): Set<string> {
     if (t) for (const pid of t.playerIds) set.add(pid);
   }
   return set;
+}
+
+function registeredPlayerOrNull(db: AppData, playerId: string) {
+  return db.players.find((x) => x.id === playerId) ?? null;
 }
 
 function reconcileScoring(m: Match) {
@@ -45,7 +54,30 @@ export async function PATCH(req: Request, context: Ctx) {
   if (!m) {
     return NextResponse.json({ error: "Jogo não encontrado" }, { status: 404 });
   }
-  if (body.date !== undefined) m.date = String(body.date).trim();
+  if (body.makeFirstInRacha === true) {
+    if (!m.agendamentoId) {
+      return NextResponse.json(
+        { error: "Apenas jogos vinculados a racha podem ser reordenados" },
+        { status: 400 }
+      );
+    }
+    const sameRacha = db.matches.filter((x) => x.agendamentoId === m.agendamentoId);
+    const minSort = sameRacha.reduce(
+      (acc, cur) => Math.min(acc, Number.isFinite(cur.sortIndex) ? cur.sortIndex : acc),
+      Number.POSITIVE_INFINITY
+    );
+    const base = Number.isFinite(minSort) ? minSort : Date.now();
+    m.sortIndex = base - 1;
+    await writeDb(db);
+    return NextResponse.json(m);
+  }
+  // Data do jogo sempre acompanha a data do racha (agendamento).
+  if (m.agendamentoId) {
+    const agendamento = db.agendamentos.find((a) => a.id === m.agendamentoId);
+    if (agendamento) {
+      m.date = agendamento.date;
+    }
+  }
   if (body.weekLabel !== undefined) m.weekLabel = String(body.weekLabel).trim() || undefined;
   if (typeof body.durationMinutes === "number" && body.durationMinutes > 0) {
     m.durationMinutes = Math.min(60, Math.round(body.durationMinutes));
@@ -88,16 +120,66 @@ export async function PATCH(req: Request, context: Ctx) {
             m.fieldTeamIndexes.includes(idx)
           ? idx
           : null;
+    if (m.championTeamIndex !== null) {
+      m.drawResult = false;
+    }
+  }
+  if (body.drawResult !== undefined) {
+    m.drawResult = Boolean(body.drawResult);
+    if (m.drawResult) {
+      m.championTeamIndex = null;
+    }
   }
   if (body.addGoal) {
-    const g = body.addGoal as { scorerId: string; assistId?: string | null };
-    if (!g.scorerId) {
+    const g = body.addGoal as { scorerId: string };
+    const scorerId = String(g.scorerId ?? "").trim();
+    if (!scorerId) {
       return NextResponse.json({ error: "Artilheiro obrigatório" }, { status: 400 });
     }
+    const scorer = registeredPlayerOrNull(db, scorerId);
+    if (!scorer) {
+      return NextResponse.json(
+        { error: "Artilheiro precisa ser jogador cadastrado" },
+        { status: 400 }
+      );
+    }
+
+    const field = fieldPlayerIdsOnMatch(m);
+    const drafts = db.draftsByAgendamento ?? {};
+    const rachaLinha =
+      m.agendamentoId != null ? rachaDraftLinhaPlayerIds(m, drafts) : new Set<string>();
+    const rachaGoleiros =
+      m.agendamentoId != null ? rachaDraftGoleiroPlayerIds(m, drafts) : new Set<string>();
+
+    let scorerFromBench: boolean | undefined;
+    if (scorer.category === "goleiro") {
+      if (!rachaGoleiros.has(scorerId)) {
+        return NextResponse.json(
+          {
+            error:
+              "Goleiro precisa estar no Gol 1 ou Gol 2 do sorteio salvo deste racha",
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      const scorerOk = field.has(scorerId) || rachaLinha.has(scorerId);
+      if (!scorerOk) {
+        return NextResponse.json(
+          {
+            error:
+              "Artilheiro precisa estar em campo nesta partida ou no elenco do racha (sorteio salvo)",
+          },
+          { status: 400 }
+        );
+      }
+      scorerFromBench = !field.has(scorerId) ? true : undefined;
+    }
+
     const goal: Goal = {
       id: newId(),
-      scorerId: g.scorerId,
-      assistId: g.assistId || null,
+      scorerId,
+      scorerFromBench,
     };
     m.goals.push(goal);
   }

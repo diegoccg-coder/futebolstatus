@@ -44,6 +44,10 @@ export async function POST(req: Request) {
     rotationOrder:
       typeof t.rotationOrder === "number" ? t.rotationOrder : i + 1,
   }));
+  const b = body as {
+    golEntradaPlayerId?: string | null;
+    golFundoPlayerId?: string | null;
+  };
   const db = await readDb();
   if (!db.agendamentos.some((a) => a.id === agendamentoId)) {
     return NextResponse.json({ error: "Racha inválido" }, { status: 400 });
@@ -56,6 +60,16 @@ export async function POST(req: Request) {
     teams,
     createdAt: new Date().toISOString(),
   };
+  if (b.golEntradaPlayerId !== undefined) {
+    draft.golEntradaPlayerId =
+      b.golEntradaPlayerId === null
+        ? null
+        : String(b.golEntradaPlayerId).trim() || null;
+  }
+  if (b.golFundoPlayerId !== undefined) {
+    draft.golFundoPlayerId =
+      b.golFundoPlayerId === null ? null : String(b.golFundoPlayerId).trim() || null;
+  }
   db.lastDraft = draft;
   db.draftsByAgendamento = { ...db.draftsByAgendamento, [agendamentoId]: draft };
   await writeDb(db);

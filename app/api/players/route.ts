@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth-server";
 import { newId, readDb, writeDb } from "@/lib/store";
+import type { PlayerCategory } from "@/lib/types";
 
 export async function POST(req: Request) {
   if (!(await requireAdminSession())) {
@@ -9,6 +10,8 @@ export async function POST(req: Request) {
   const body = await req.json();
   const name = String(body.name ?? "").trim();
   const stars = Math.min(5, Math.max(1, Number(body.stars) || 3));
+  const category: PlayerCategory =
+    body.category === "goleiro" ? "goleiro" : "campo";
   if (!name) {
     return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
   }
@@ -17,6 +20,7 @@ export async function POST(req: Request) {
     id: newId(),
     name,
     stars,
+    category,
     createdAt: new Date().toISOString(),
   };
   db.players.push(player);

@@ -9,7 +9,7 @@ export default async function HomePage() {
     <div className="space-y-10">
       <div>
         <h1 className="font-display text-3xl font-bold text-white md:text-4xl">
-          Sua pelada semanal
+          Futebol Status
         </h1>
         <p className="mt-2 max-w-2xl text-emerald-100/85">
           Olá{session?.user?.name ? `, ${session.user.name}` : ""}. Use o{" "}
@@ -75,7 +75,7 @@ export default async function HomePage() {
               <h2 className="font-display text-lg font-semibold text-amber-200">
                 Admin · Jogadores
               </h2>
-              <p className="mt-2 text-sm text-emerald-100/80">Cadastro da pelada.</p>
+              <p className="mt-2 text-sm text-emerald-100/80">Cadastro dos jogadores do grupo.</p>
             </Link>
           </li>
         )}

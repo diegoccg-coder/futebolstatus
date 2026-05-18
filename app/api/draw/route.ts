@@ -24,6 +24,12 @@ export async function POST(req: Request) {
   if (selected.length !== playerIds.length) {
     return NextResponse.json({ error: "Jogador inválido" }, { status: 400 });
   }
+  if (selected.some((p) => p.category === "goleiro")) {
+    return NextResponse.json(
+      { error: "Goleiros não entram no sorteio dos times — marque só jogadores de linha" },
+      { status: 400 }
+    );
+  }
   const shuffled = shuffle(selected);
   const { teams, sums } = balanceIntoN(shuffled, n);
   const rotationOrders = randomRotationOrders(n);

@@ -1,4 +1,4 @@
-import type { Match, MatchTeamSlot } from "./types";
+import type { LastDraft, Match, MatchTeamSlot } from "./types";
 
 export function teamsByRotation(teams: MatchTeamSlot[]): MatchTeamSlot[] {
   return [...teams].sort((a, b) => a.rotationOrder - b.rotationOrder);
@@ -26,6 +26,7 @@ export function fieldTeamIndexesSafe(m: Match): number[] {
  * senão placar / pênaltis.
  */
 export function effectiveWinnerTeamIndex(m: Match): number | null {
+  if (m.drawResult) return null;
   const field = fieldTeamIndexesSafe(m);
   if (field.length < 2) {
     if (m.championTeamIndex !== null && m.championTeamIndex < m.teams.length) {
@@ -59,6 +60,7 @@ export function effectiveWinnerTeamIndex(m: Match): number | null {
 
 /** Nome do vencedor (cadastro ou inferido pelo placar). */
 export function matchWinnerDisplayName(m: Match): string | null {
+  if (m.drawResult) return "Empate";
   const w = effectiveWinnerTeamIndex(m);
   if (w === null) return null;
   const name = m.teams[w]?.name?.trim();
@@ -97,4 +99,59 @@ export function championName(m: Match): string | null {
   if (m.championTeamIndex === null) return null;
   const t = m.teams[m.championTeamIndex];
   return t?.name ?? null;
+}
+
+/** Nome do time em campo ao qual o jogador pertence nesta partida, ou null. */
+export function teamNameForPlayerOnField(m: Match, playerId: string): string | null {
+  const field = fieldTeamIndexesSafe(m);
+  for (const idx of field) {
+    const t = m.teams[idx];
+    if (t?.playerIds.includes(playerId)) {
+      const name = t.name?.trim();
+      return name || null;
+    }
+  }
+  return null;
+}
+
+/** Ids dos jogadores nos dois times em campo (para cartões, validação de gol “em campo”). */
+export function fieldPlayerIdsOnMatch(m: Match): Set<string> {
+  const set = new Set<string>();
+  for (const idx of fieldTeamIndexesSafe(m)) {
+    const t = m.teams[idx];
+    if (t) for (const id of t.playerIds) set.add(id);
+  }
+  return set;
+}
+
+/**
+ * Ids de todos os jogadores de linha do rascunho do racha (times sorteados), sem goleiros do gol.
+ * Usado para lista de substitutos na partida.
+ */
+export function rachaDraftLinhaPlayerIds(
+  m: Match,
+  draftsByAgendamento: Record<string, LastDraft>
+): Set<string> {
+  const out = new Set<string>();
+  if (!m.agendamentoId) return out;
+  const d = draftsByAgendamento[m.agendamentoId];
+  if (!d) return out;
+  for (const t of d.teams) {
+    for (const id of t.playerIds) out.add(id);
+  }
+  return out;
+}
+
+/** Goleiros do sorteio (Gol 1 entrada e Gol 2 fundo) no racha da partida. */
+export function rachaDraftGoleiroPlayerIds(
+  m: Match,
+  draftsByAgendamento: Record<string, LastDraft>
+): Set<string> {
+  const out = new Set<string>();
+  if (!m.agendamentoId) return out;
+  const d = draftsByAgendamento[m.agendamentoId];
+  if (!d) return out;
+  if (d.golEntradaPlayerId) out.add(d.golEntradaPlayerId);
+  if (d.golFundoPlayerId) out.add(d.golFundoPlayerId);
+  return out;
 }

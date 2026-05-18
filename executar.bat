@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Pelada - servidor local
+title Futebol Status - servidor local
 cd /d "%~dp0"
 
 if not exist "node_modules\" (

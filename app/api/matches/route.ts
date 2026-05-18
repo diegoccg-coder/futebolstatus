@@ -8,15 +8,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
   const body = await req.json();
-  const date = String(body.date ?? "").trim();
   const weekLabel = body.weekLabel ? String(body.weekLabel).trim() : undefined;
   const agendamentoId =
     body.agendamentoId && String(body.agendamentoId).trim()
       ? String(body.agendamentoId).trim()
       : null;
-  if (!date) {
-    return NextResponse.json({ error: "Data obrigatória" }, { status: 400 });
-  }
   const durationMinutes =
     typeof body.durationMinutes === "number" && body.durationMinutes > 0
       ? Math.min(60, Math.round(body.durationMinutes))
@@ -50,13 +46,15 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (!db.agendamentos.some((a) => a.id === agendamentoId)) {
+  const agendamento = db.agendamentos.find((a) => a.id === agendamentoId);
+  if (!agendamento) {
     return NextResponse.json({ error: "Racha inválido" }, { status: 400 });
   }
   const match: Match = {
     id: newId(),
+    sortIndex: Date.now(),
     agendamentoId,
-    date,
+    date: agendamento.date,
     weekLabel,
     durationMinutes,
     format: n === 2 ? "dupla" : format,
@@ -65,6 +63,7 @@ export async function POST(req: Request) {
     fieldTeamIndexes,
     goals: [],
     championTeamIndex: null,
+    drawResult: false,
     placarField0: null,
     placarField1: null,
     decisaoPorPenaltis: false,

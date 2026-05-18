@@ -7,6 +7,7 @@ import type { Match, MatchTeamSlot } from "@/lib/types";
 
 /** Ordem de cadastro: primeiro jogo criado → último (id começa com timestamp em base36). */
 function compareMatchCreationOrder(a: Match, b: Match): number {
+  if (a.sortIndex !== b.sortIndex) return a.sortIndex - b.sortIndex;
   const head = (id: string) => id.split("-")[0] ?? id;
   const ta = parseInt(head(a.id), 36);
   const tb = parseInt(head(b.id), 36);
@@ -17,7 +18,7 @@ function compareMatchCreationOrder(a: Match, b: Match): number {
 }
 import { useAppData } from "@/lib/useData";
 
-const COLOR_NAMES = ["Amarelo", "Laranja", "Verde", "Preto"] as const;
+const COLOR_NAMES = ["Verde", "Amarelo", "Preto", "Laranja"] as const;
 
 function isGenericName(name: string): boolean {
   const n = name.trim().toLowerCase();
@@ -43,10 +44,10 @@ function displayTeamName(name: string, idx: number): string {
 function emptyTeams(n: 2 | 3 | 4): MatchTeamSlot[] {
   const labels =
     n === 2
-      ? ["Amarelo", "Laranja"]
+      ? ["Verde", "Amarelo"]
       : n === 3
-        ? ["Amarelo", "Laranja", "Verde"]
-        : ["Amarelo", "Laranja", "Verde", "Preto"];
+        ? ["Verde", "Amarelo", "Preto"]
+        : ["Verde", "Amarelo", "Preto", "Laranja"];
   return labels.map((name, i) => ({
     name,
     playerIds: [],
@@ -58,7 +59,6 @@ export default function JogosPage() {
   const { data, loading, error, refresh } = useAppData();
   const [agendamentoId, setAgendamentoId] = useState("");
   const [historyAgendamentoId, setHistoryAgendamentoId] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [weekLabel, setWeekLabel] = useState("");
   const [teamCountNew, setTeamCountNew] = useState<2 | 3 | 4>(2);
   const [durationMinutes, setDurationMinutes] = useState(8);
@@ -100,14 +100,25 @@ export default function JogosPage() {
 
   function computeQueueAfterGames(
     teamCount: number,
-    jogos: Array<{ fieldTeamIndexes: number[]; championTeamIndex: number | null }>
+    jogos: Array<{
+      fieldTeamIndexes: number[];
+      championTeamIndex: number | null;
+      drawResult: boolean;
+    }>
   ): number[] {
     let queue = Array.from({ length: teamCount }, (_, i) => i);
     for (const j of jogos) {
       if (!Array.isArray(j.fieldTeamIndexes) || j.fieldTeamIndexes.length < 2) continue;
-      if (j.championTeamIndex === null) continue;
       const [a, b] = j.fieldTeamIndexes;
       if (a === b) continue;
+      if (j.drawResult) {
+        if (teamCount >= 4) {
+          const rest = queue.filter((x) => x !== a && x !== b);
+          queue = [...rest, a, b];
+        }
+        continue;
+      }
+      if (j.championTeamIndex === null) continue;
       const winner = j.championTeamIndex;
       if (winner !== a && winner !== b) continue;
       const loser = winner === a ? b : a;
@@ -125,7 +136,6 @@ export default function JogosPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date,
           agendamentoId,
           weekLabel: weekLabel.trim() || undefined,
           durationMinutes,
@@ -158,6 +168,20 @@ export default function JogosPage() {
     await refresh();
   }
 
+  async function makeMatchFirst(matchId: string) {
+    const r = await fetch(`/api/matches/${matchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ makeFirstInRacha: true }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      alert(j.error || "Erro ao reordenar jogo");
+      return;
+    }
+    await refresh();
+  }
+
   const matches = [...(data?.matches ?? [])].sort(compareMatchCreationOrder);
   const agendamentos = [...(data?.agendamentos ?? [])].sort((a, b) =>
     a.date.localeCompare(b.date)
@@ -178,6 +202,7 @@ export default function JogosPage() {
         matchesSelected.map((m) => ({
           fieldTeamIndexes: m.fieldTeamIndexes,
           championTeamIndex: m.championTeamIndex,
+          drawResult: m.drawResult,
         }))
       )
     : [];
@@ -187,7 +212,7 @@ export default function JogosPage() {
   const matchesTally = matchesSelected
     .map(
       (m) =>
-        `${m.id}:${m.championTeamIndex ?? "x"}:${(m.fieldTeamIndexes || []).join(",")}`
+        `${m.id}:${m.championTeamIndex ?? "x"}:${m.drawResult ? "d" : "n"}:${(m.fieldTeamIndexes || []).join(",")}`
     )
     .join("|");
 
@@ -218,6 +243,7 @@ export default function JogosPage() {
       ms.map((m) => ({
         fieldTeamIndexes: m.fieldTeamIndexes,
         championTeamIndex: m.championTeamIndex,
+        drawResult: m.drawResult,
       }))
     );
     setFieldA(q[0] ?? 0);
@@ -319,6 +345,25 @@ export default function JogosPage() {
                   </div>
                 ))}
               </div>
+              {(typeof draftForRacha.golEntradaPlayerId === "string" ||
+                typeof draftForRacha.golFundoPlayerId === "string") && (
+                <div className="rounded-lg border border-sky-800/45 bg-sky-950/20 px-3 py-3">
+                  <p className="text-xs font-medium text-sky-300/95">Goleiros (sorteio)</p>
+                  <p className="mt-1 text-sm text-emerald-100/90">
+                    <span className="text-emerald-500/90">Gol 1 (entrada):</span>{" "}
+                    {draftForRacha.golEntradaPlayerId
+                      ? data.players.find((x) => x.id === draftForRacha.golEntradaPlayerId)
+                          ?.name ?? "—"
+                      : "—"}{" "}
+                    <span className="mx-2 text-emerald-700">·</span>
+                    <span className="text-emerald-500/90">Gol 2 (fundo):</span>{" "}
+                    {draftForRacha.golFundoPlayerId
+                      ? data.players.find((x) => x.id === draftForRacha.golFundoPlayerId)
+                          ?.name ?? "—"
+                      : "—"}
+                  </p>
+                </div>
+              )}
               <p className="text-xs text-emerald-500/80">
                 Atualizado em{" "}
                 {new Date(draftForRacha.createdAt).toLocaleString("pt-BR")} ·{" "}
@@ -327,22 +372,12 @@ export default function JogosPage() {
             </div>
           )}
           <div>
-            <label className="block text-sm text-emerald-200/90">Data</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
-              required
-            />
-          </div>
-          <div>
             <label className="block text-sm text-emerald-200/90">Semana / apelido (opcional)</label>
             <input
               value={weekLabel}
               onChange={(e) => setWeekLabel(e.target.value)}
               className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
-              placeholder="Ex.: Pelada 12"
+              placeholder="Ex.: Jogo 12"
             />
           </div>
         </div>
@@ -509,19 +544,33 @@ export default function JogosPage() {
                                 {m.weekLabel ? ` · ${m.weekLabel}` : ""}
                                 {m.teamCount > 2 ? ` · Racha (${m.teamCount})` : ""}
                                 {` · ${m.durationMinutes} min`}
-                                {matchWinnerDisplayName(m)
-                                  ? ` · Vencedor: ${matchWinnerDisplayName(m)}`
-                                  : ""}
+                                {m.drawResult
+                                  ? " · Resultado: Empate"
+                                  : matchWinnerDisplayName(m)
+                                    ? ` · Vencedor: ${matchWinnerDisplayName(m)}`
+                                    : ""}
                               </span>
                             </Link>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => deleteMatch(m.id)}
-                            className="self-start text-sm text-red-400/90 hover:text-red-300"
-                          >
-                            Excluir jogo
-                          </button>
+                          <div className="self-start flex items-center gap-3">
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => makeMatchFirst(m.id)}
+                                className="text-sm text-amber-300/95 hover:text-amber-200"
+                                title="Move este jogo para a posição 1 deste racha"
+                              >
+                                Tornar 1º jogo
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => deleteMatch(m.id)}
+                              className="text-sm text-red-400/90 hover:text-red-300"
+                            >
+                              Excluir jogo
+                            </button>
+                          </div>
                         </div>
                       </li>
                     ))}

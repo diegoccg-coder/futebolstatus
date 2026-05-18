@@ -1,13 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { MatchTimers } from "@/components/MatchTimers";
 import { Stars } from "@/components/Stars";
 import type { AppDataClient } from "@/lib/client-types";
-import { matchScoreLine, matchWinnerDisplayName, teamsByRotation } from "@/lib/matchUi";
+import {
+  fieldPlayerIdsOnMatch,
+  matchScoreLine,
+  matchWinnerDisplayName,
+  rachaDraftGoleiroPlayerIds,
+  rachaDraftLinhaPlayerIds,
+  teamNameForPlayerOnField,
+  teamsByRotation,
+} from "@/lib/matchUi";
 import type { Goal, Match, Player } from "@/lib/types";
 
 export default function JogoDetalhePage() {
@@ -20,8 +28,17 @@ export default function JogoDetalhePage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [scorerId, setScorerId] = useState("");
-  const [assistId, setAssistId] = useState("");
   const [yellowPick, setYellowPick] = useState("");
+  const [formDuration, setFormDuration] = useState(8);
+  const [formTeamNameA, setFormTeamNameA] = useState("");
+  const [formTeamNameB, setFormTeamNameB] = useState("");
+  const [formPlacar0, setFormPlacar0] = useState("");
+  const [formPlacar1, setFormPlacar1] = useState("");
+  const [formDecisaoPenaltis, setFormDecisaoPenaltis] = useState(false);
+  const [formPen0, setFormPen0] = useState("");
+  const [formPen1, setFormPen1] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+  const prevMatchIdRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/data", { cache: "no-store" });
@@ -40,8 +57,86 @@ export default function JogoDetalhePage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!match) return;
+    if (prevMatchIdRef.current === match.id) return;
+    prevMatchIdRef.current = match.id;
+    const field = Array.isArray(match.fieldTeamIndexes)
+      ? match.fieldTeamIndexes.filter((i) => i >= 0 && i < match.teams.length).slice(0, 2)
+      : [0, 1];
+    const fa = field[0] ?? 0;
+    const fb = field[1] ?? 1;
+    setFormDuration(match.durationMinutes);
+    setFormTeamNameA(match.teams[fa]?.name ?? "");
+    setFormTeamNameB(match.teams[fb]?.name ?? "");
+    setFormPlacar0(match.placarField0 === null ? "" : String(match.placarField0));
+    setFormPlacar1(match.placarField1 === null ? "" : String(match.placarField1));
+    setFormDecisaoPenaltis(match.decisaoPorPenaltis);
+    setFormPen0(match.penaltisConvertidos0 === null ? "" : String(match.penaltisConvertidos0));
+    setFormPen1(match.penaltisConvertidos1 === null ? "" : String(match.penaltisConvertidos1));
+  }, [match]);
+
   const playersMap = new Map<string, Player>();
   data?.players.forEach((p) => playersMap.set(p.id, p));
+
+  const { fieldA, fieldB } = useMemo(() => {
+    if (!match) return { fieldA: 0, fieldB: 1 };
+    const field = Array.isArray(match.fieldTeamIndexes)
+      ? match.fieldTeamIndexes.filter((i) => i >= 0 && i < match.teams.length).slice(0, 2)
+      : [0, 1];
+    return { fieldA: field[0] ?? 0, fieldB: field[1] ?? 1 };
+  }, [match]);
+
+  /** Jogadores de linha e goleiros do sorteio para registrar gols. */
+  const opcoesGol = useMemo(() => {
+    if (!match || !data) {
+      return {
+        emCampo: [] as Player[],
+        outrosNoRacha: [] as Player[],
+        goleiros: [] as Player[],
+        draftDisponivel: false,
+      };
+    }
+    const field = fieldPlayerIdsOnMatch(match);
+    const drafts = data.draftsByAgendamento ?? {};
+    const gkIds = match.agendamentoId
+      ? rachaDraftGoleiroPlayerIds(match, drafts)
+      : new Set<string>();
+    const goleiros = data.players
+      .filter((p) => p.category === "goleiro" && gkIds.has(p.id))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+    if (match.agendamentoId) {
+      const draftIds = rachaDraftLinhaPlayerIds(match, drafts);
+      if (draftIds.size > 0) {
+        const todos = data.players
+          .filter((p) => p.category !== "goleiro" && draftIds.has(p.id))
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+        return {
+          emCampo: todos.filter((p) => field.has(p.id)),
+          outrosNoRacha: todos.filter((p) => !field.has(p.id)),
+          goleiros,
+          draftDisponivel: true,
+        };
+      }
+    }
+    const emCampo = data.players
+      .filter((p) => p.category !== "goleiro" && field.has(p.id))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return { emCampo, outrosNoRacha: [] as Player[], goleiros, draftDisponivel: false };
+  }, [data, match]);
+
+  const formPlacarEmpate = useMemo(() => {
+    const a = formPlacar0.trim() === "" ? null : Number(formPlacar0);
+    const b = formPlacar1.trim() === "" ? null : Number(formPlacar1);
+    return (
+      a !== null &&
+      b !== null &&
+      Number.isFinite(a) &&
+      Number.isFinite(b) &&
+      a === b
+    );
+  }, [formPlacar0, formPlacar1]);
 
   function allInMatch(): Player[] {
     if (!match) return [];
@@ -66,8 +161,59 @@ export default function JogoDetalhePage() {
       alert(j.error || "Erro");
       return false;
     }
-    await load();
+    const updated = (await r.json()) as Match;
+    setMatch(updated);
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        matches: prev.matches.map((x) => (x.id === updated.id ? updated : x)),
+      };
+    });
     return true;
+  }
+
+  async function salvarDetalhesPartida() {
+    if (!match) return;
+    setSavingDetails(true);
+    try {
+      const p0 =
+        formPlacar0.trim() === "" ? null : Math.round(Number(formPlacar0));
+      const p1 =
+        formPlacar1.trim() === "" ? null : Math.round(Number(formPlacar1));
+      if (p0 !== null && (!Number.isFinite(p0) || p0 < 0)) {
+        alert("Placar do primeiro time inválido.");
+        return;
+      }
+      if (p1 !== null && (!Number.isFinite(p1) || p1 < 0)) {
+        alert("Placar do segundo time inválido.");
+        return;
+      }
+      const pen0 =
+        formPen0 === "" ? null : formPen0 === "0" || formPen0 === "1" ? Number(formPen0) : null;
+      const pen1 =
+        formPen1 === "" ? null : formPen1 === "0" || formPen1 === "1" ? Number(formPen1) : null;
+      const dur = Math.min(60, Math.max(1, Math.round(formDuration) || 8));
+      const teams = match.teams.map((t, i) => {
+        if (i === fieldA)
+          return { ...t, name: formTeamNameA.trim() || t.name };
+        if (i === fieldB)
+          return { ...t, name: formTeamNameB.trim() || t.name };
+        return t;
+      });
+      const ok = await patch({
+        durationMinutes: dur,
+        teams,
+        placarField0: p0,
+        placarField1: p1,
+        decisaoPorPenaltis: formDecisaoPenaltis,
+        penaltisConvertidos0: pen0,
+        penaltisConvertidos1: pen1,
+      });
+      if (ok) alert("Alterações salvas.");
+    } finally {
+      setSavingDetails(false);
+    }
   }
 
   async function setChampion(idx: number | null) {
@@ -77,14 +223,8 @@ export default function JogoDetalhePage() {
   async function addGoal(e: React.FormEvent) {
     e.preventDefault();
     if (!scorerId) return;
-    await patch({
-      addGoal: {
-        scorerId,
-        assistId: assistId || null,
-      },
-    });
+    await patch({ addGoal: { scorerId } });
     setScorerId("");
-    setAssistId("");
   }
 
   async function removeGoal(g: Goal) {
@@ -106,11 +246,6 @@ export default function JogoDetalhePage() {
   const fila = teamsByRotation(match.teams);
 
   const backHref = isAdmin ? "/jogos" : "/resultados";
-  const field = Array.isArray(match.fieldTeamIndexes)
-    ? match.fieldTeamIndexes.filter((i) => i >= 0 && i < match.teams.length).slice(0, 2)
-    : [0, 1];
-  const fieldA = field[0] ?? 0;
-  const fieldB = field[1] ?? 1;
   const scoreLine = matchScoreLine(match);
 
   return (
@@ -131,28 +266,48 @@ export default function JogoDetalhePage() {
         </p>
         {matchWinnerDisplayName(match) && (
           <p className="mt-2 text-sm text-amber-200/90">
-            Vencedor: <strong>{matchWinnerDisplayName(match)}</strong>
+            {match.drawResult ? "Resultado" : "Vencedor"}:{" "}
+            <strong>{matchWinnerDisplayName(match)}</strong>
+          </p>
+        )}
+        {!isAdmin && (
+          <p className="mt-3 rounded-lg border border-emerald-800/50 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200/90">
+            Visualização apenas — somente administradores podem alterar placar, gols, cartões e
+            vencedor.
           </p>
         )}
       </div>
 
       {isAdmin && (
-        <label className="block max-w-xs">
-          <span className="text-sm text-emerald-200/90">
-            Duração de cada partida no campo (min)
-          </span>
-          <input
-            type="number"
-            min={1}
-            max={60}
-            defaultValue={match.durationMinutes}
-            onBlur={(e) => {
-              const v = Number(e.target.value);
-              if (v > 0 && v !== match.durationMinutes) patch({ durationMinutes: v });
-            }}
-            className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
-          />
-        </label>
+        <div className="rounded-2xl border border-amber-900/40 bg-amber-950/15 p-5">
+          <p className="text-sm font-medium text-amber-200/95">Salvar detalhes da partida</p>
+          <p className="mt-1 text-xs text-emerald-100/75">
+            Duração, nomes dos times em campo, placar e pênaltis só são gravados no servidor ao
+            clicar em <strong>Salvar alterações</strong>. Gols, cartões e vencedor continuam
+            salvando ao registrar.
+          </p>
+          <button
+            type="button"
+            disabled={savingDetails}
+            onClick={() => void salvarDetalhesPartida()}
+            className="mt-4 rounded-xl bg-amber-500 px-5 py-2.5 font-medium text-pitch-950 hover:bg-amber-400 disabled:opacity-50"
+          >
+            {savingDetails ? "Salvando…" : "Salvar alterações"}
+          </button>
+          <label className="mt-6 block max-w-xs">
+            <span className="text-sm text-emerald-200/90">
+              Duração de cada partida no campo (min)
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={formDuration}
+              onChange={(e) => setFormDuration(Number(e.target.value) || 1)}
+              className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
+            />
+          </label>
+        </div>
       )}
 
       <MatchTimers
@@ -195,23 +350,20 @@ export default function JogoDetalhePage() {
             {[fieldA, fieldB].map((idx) => {
               const t = match.teams[idx];
               if (!t) return null;
+              const isA = idx === fieldA;
               return (
                 <label key={idx} className="block">
                   <span className="text-sm text-emerald-200/90">
-                    Nome ({idx === fieldA ? "campo A" : "campo B"})
+                    Nome ({isA ? "campo A" : "campo B"})
                     {match.teamCount > 2 ? ` · fila ${t.rotationOrder}º` : ""}
                   </span>
                   <input
-                    defaultValue={t.name}
-                    onBlur={(e) => {
-                      const v = e.target.value.trim();
-                      if (v && v !== t.name) {
-                        const teams = match.teams.map((x, i) =>
-                          i === idx ? { ...x, name: v } : x
-                        );
-                        void patch({ teams });
-                      }
-                    }}
+                    value={isA ? formTeamNameA : formTeamNameB}
+                    onChange={(e) =>
+                      isA
+                        ? setFormTeamNameA(e.target.value)
+                        : setFormTeamNameB(e.target.value)
+                    }
                     className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
                   />
                 </label>
@@ -280,39 +432,27 @@ export default function JogoDetalhePage() {
           <div className="mt-4 flex flex-wrap items-end gap-4">
             <label className="block">
               <span className="text-xs text-emerald-300/90">
-                {match.teams[fieldA]?.name ?? "Time A"}
+                {formTeamNameA.trim() || match.teams[fieldA]?.name || "Time A"}
               </span>
               <input
-                key={`pf0-${match.id}-${match.placarField0 ?? "x"}`}
                 type="number"
                 min={0}
                 max={99}
-                defaultValue={match.placarField0 ?? ""}
-                onBlur={(e) => {
-                  const raw = e.target.value.trim();
-                  const v = raw === "" ? null : Number(raw);
-                  if (v !== null && (!Number.isFinite(v) || v < 0)) return;
-                  if (v !== match.placarField0) void patch({ placarField0: v });
-                }}
+                value={formPlacar0}
+                onChange={(e) => setFormPlacar0(e.target.value)}
                 className="mt-1 block w-24 rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
               />
             </label>
             <label className="block">
               <span className="text-xs text-emerald-300/90">
-                {match.teams[fieldB]?.name ?? "Time B"}
+                {formTeamNameB.trim() || match.teams[fieldB]?.name || "Time B"}
               </span>
               <input
-                key={`pf1-${match.id}-${match.placarField1 ?? "x"}`}
                 type="number"
                 min={0}
                 max={99}
-                defaultValue={match.placarField1 ?? ""}
-                onBlur={(e) => {
-                  const raw = e.target.value.trim();
-                  const v = raw === "" ? null : Number(raw);
-                  if (v !== null && (!Number.isFinite(v) || v < 0)) return;
-                  if (v !== match.placarField1) void patch({ placarField1: v });
-                }}
+                value={formPlacar1}
+                onChange={(e) => setFormPlacar1(e.target.value)}
                 className="mt-1 block w-24 rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
               />
             </label>
@@ -323,9 +463,9 @@ export default function JogoDetalhePage() {
           </p>
         )}
 
-        {match.placarField0 !== null &&
+        {(isAdmin ? formPlacarEmpate : match.placarField0 !== null &&
           match.placarField1 !== null &&
-          match.placarField0 === match.placarField1 && (
+          match.placarField0 === match.placarField1) && (
             <div className="mt-4 rounded-xl border border-amber-900/40 bg-amber-950/20 p-4">
               <p className="text-sm font-medium text-amber-100/95">Empate — desempate nos pênaltis</p>
               {isAdmin ? (
@@ -333,31 +473,21 @@ export default function JogoDetalhePage() {
                   <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-emerald-200">
                     <input
                       type="checkbox"
-                      checked={match.decisaoPorPenaltis}
-                      onChange={(e) =>
-                        void patch({ decisaoPorPenaltis: e.target.checked })
-                      }
+                      checked={formDecisaoPenaltis}
+                      onChange={(e) => setFormDecisaoPenaltis(e.target.checked)}
                       className="rounded border-emerald-700"
                     />
                     Partida decidida nos pênaltis (1 cobrança por time)
                   </label>
-                  {match.decisaoPorPenaltis && (
+                  {formDecisaoPenaltis && (
                     <div className="mt-4 flex flex-wrap gap-6">
                       <div>
                         <span className="text-xs text-emerald-300/90">
-                          {match.teams[fieldA]?.name} — cobrança
+                          {formTeamNameA.trim() || match.teams[fieldA]?.name} — cobrança
                         </span>
                         <select
-                          value={
-                            match.penaltisConvertidos0 === null
-                              ? ""
-                              : String(match.penaltisConvertidos0)
-                          }
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const v = raw === "" ? null : Number(raw);
-                            void patch({ penaltisConvertidos0: v });
-                          }}
+                          value={formPen0}
+                          onChange={(e) => setFormPen0(e.target.value)}
                           className="mt-1 block rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
                         >
                           <option value="">—</option>
@@ -367,19 +497,11 @@ export default function JogoDetalhePage() {
                       </div>
                       <div>
                         <span className="text-xs text-emerald-300/90">
-                          {match.teams[fieldB]?.name} — cobrança
+                          {formTeamNameB.trim() || match.teams[fieldB]?.name} — cobrança
                         </span>
                         <select
-                          value={
-                            match.penaltisConvertidos1 === null
-                              ? ""
-                              : String(match.penaltisConvertidos1)
-                          }
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const v = raw === "" ? null : Number(raw);
-                            void patch({ penaltisConvertidos1: v });
-                          }}
+                          value={formPen1}
+                          onChange={(e) => setFormPen1(e.target.value)}
                           className="mt-1 block rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
                         >
                           <option value="">—</option>
@@ -468,7 +590,20 @@ export default function JogoDetalhePage() {
       </section>
 
       <section>
-        <h2 className="font-display text-lg font-semibold text-amber-200">Gols e assistências</h2>
+        <h2 className="font-display text-lg font-semibold text-amber-200">Gols</h2>
+        <p className="mt-1 text-xs text-emerald-500/90">
+          Lista com <strong>todos os jogadores de linha do racha</strong> (sorteio vinculado ao
+          agendamento) e os <strong>goleiros</strong> do Gol 1 e Gol 2. Quem entra como{" "}
+          <strong>substituto</strong> ganha pontos de gol, mas <strong>não</strong> ganha vitória do
+          time em campo. Cada gol vale <strong>2 pontos</strong> no ranking.
+        </p>
+        {!opcoesGol.draftDisponivel && match.agendamentoId && (
+          <p className="mt-2 text-xs text-amber-200/85">
+            Não há sorteio salvo para este racha — só é possível escolher quem está nos dois times
+            em campo. Vincule o sorteio na página <strong>Sorteio</strong> para liberar o elenco
+            completo.
+          </p>
+        )}
         {isAdmin ? (
           <form
             onSubmit={addGoal}
@@ -479,32 +614,39 @@ export default function JogoDetalhePage() {
               <select
                 value={scorerId}
                 onChange={(e) => setScorerId(e.target.value)}
-                className="mt-1 rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
+                className="mt-1 min-w-[12rem] rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
                 required
               >
                 <option value="">Quem fez o gol</option>
-                {allInMatch().map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-emerald-300/90">Assistência (opcional)</label>
-              <select
-                value={assistId}
-                onChange={(e) => setAssistId(e.target.value)}
-                className="mt-1 rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
-              >
-                <option value="">Nenhuma</option>
-                {allInMatch()
-                  .filter((p) => p.id !== scorerId)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
+                <optgroup label="Em campo nesta partida">
+                  {opcoesGol.emCampo.map((p) => {
+                    const tn = teamNameForPlayerOnField(match, p.id);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {tn ? ` · ${tn}` : ""}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+                {opcoesGol.outrosNoRacha.length > 0 && (
+                  <optgroup label="Substituto / outro time do racha">
+                    {opcoesGol.outrosNoRacha.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · substituto
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {opcoesGol.goleiros.length > 0 && (
+                  <optgroup label="Goleiros (Gol 1 / Gol 2)">
+                    {opcoesGol.goleiros.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · goleiro
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
             <button
@@ -524,7 +666,8 @@ export default function JogoDetalhePage() {
           <ul className="mt-4 divide-y divide-emerald-900/60 rounded-xl border border-emerald-800/60">
             {match.goals.map((g) => {
               const scorer = playersMap.get(g.scorerId);
-              const ast = g.assistId ? playersMap.get(g.assistId) : null;
+              const scorerTeam = teamNameForPlayerOnField(match, g.scorerId);
+              const isGk = scorer?.category === "goleiro";
               return (
                 <li
                   key={g.id}
@@ -532,8 +675,14 @@ export default function JogoDetalhePage() {
                 >
                   <span>
                     <strong className="text-white">{scorer?.name ?? "?"}</strong>
-                    {ast && (
-                      <span className="text-emerald-300/90"> (assist. {ast.name})</span>
+                    {isGk ? (
+                      <span className="text-sky-300/90"> · goleiro</span>
+                    ) : g.scorerFromBench ? (
+                      <span className="text-amber-200/90"> · substituto</span>
+                    ) : (
+                      scorerTeam && (
+                        <span className="text-emerald-400/90"> · Time {scorerTeam}</span>
+                      )
                     )}
                   </span>
                   {isAdmin && (
@@ -582,7 +731,18 @@ export default function JogoDetalhePage() {
               })}
               <button
                 type="button"
-                onClick={() => setChampion(null)}
+                onClick={() => void patch({ drawResult: true })}
+                className={`rounded-xl px-5 py-2.5 font-medium transition ${
+                  match.drawResult
+                    ? "bg-amber-500 text-pitch-950"
+                    : "border border-emerald-700 text-emerald-100 hover:bg-emerald-900/50"
+                }`}
+              >
+                Empate
+              </button>
+              <button
+                type="button"
+                onClick={() => void patch({ championTeamIndex: null, drawResult: false })}
                 className="rounded-xl border border-emerald-800 px-4 py-2.5 text-sm text-emerald-400 hover:bg-emerald-950/80"
               >
                 Limpar
@@ -593,7 +753,8 @@ export default function JogoDetalhePage() {
           <p className="mt-2 text-sm text-emerald-200/85">
             {matchWinnerDisplayName(match) ? (
               <>
-                Vencedor: <strong className="text-amber-200">{matchWinnerDisplayName(match)}</strong>
+                {match.drawResult ? "Resultado" : "Vencedor"}:{" "}
+                <strong className="text-amber-200">{matchWinnerDisplayName(match)}</strong>
               </>
             ) : (
               "Vencedor ainda não definido (cadastre o campeão ou o placar)."

@@ -78,7 +78,7 @@ export default function AgendaPage() {
       <div>
         <h1 className="font-display text-2xl font-bold text-white">Rachas marcados</h1>
         <p className="mt-1 text-sm text-emerald-100/75">
-          Datas combinadas para a pelada. O administrador cadastra novos eventos.
+          Datas combinadas para os jogos. O administrador cadastra novos eventos.
         </p>
       </div>
 
@@ -117,7 +117,7 @@ export default function AgendaPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white"
-              placeholder="Ex.: Pelada sábado"
+              placeholder="Ex.: Sábado manhã"
             />
           </div>
           <div>

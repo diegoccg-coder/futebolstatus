@@ -8,6 +8,7 @@ const adminLinks = [
   { href: "/jogadores", label: "Jogadores" },
   { href: "/sorteio", label: "Sorteio" },
   { href: "/jogos", label: "Jogos" },
+  { href: "/financas", label: "Finanças" },
   { href: "/admin/usuarios", label: "Usuários" },
 ];
 
@@ -18,6 +19,7 @@ const allLinks = [
   { href: "/agenda", label: "Rachas" },
   { href: "/resultados", label: "Resultados" },
   { href: "/ranking", label: "Ranking" },
+  { href: "/foto-do-campeao", label: "Foto do campeão" },
 ];
 
 export function NavBar() {
@@ -37,7 +39,7 @@ export function NavBar() {
           href="/"
           className="font-display text-xl font-bold tracking-tight text-amber-300"
         >
-          ⚽ Pelada
+          ⚽ Futebol Status
         </Link>
         <nav className="flex flex-wrap items-center gap-1 sm:gap-2">
           {allLinks.map((item) => (

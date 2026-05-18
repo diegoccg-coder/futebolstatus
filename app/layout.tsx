@@ -8,8 +8,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-display" });
 
 export const metadata: Metadata = {
-  title: "Pelada — jogos & jogadores",
-  description: "Cadastro, sorteio, gols e ranking da pelada semanal",
+  title: "Futebol Status — jogos & jogadores",
+  description: "Cadastro, sorteio, gols e ranking das suas rachas semanais",
 };
 
 export default function RootLayout({

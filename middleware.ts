@@ -9,6 +9,7 @@ export default withAuth(
     const adminOnly =
       path.startsWith("/jogadores") ||
       path.startsWith("/sorteio") ||
+      path.startsWith("/financas") ||
       path.startsWith("/admin") ||
       path === "/jogos";
 

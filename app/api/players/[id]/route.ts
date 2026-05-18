@@ -22,6 +22,10 @@ export async function PATCH(req: Request, context: Ctx) {
   if (body.stars !== undefined) {
     db.players[i].stars = Math.min(5, Math.max(1, Number(body.stars) || 3));
   }
+  if (body.category !== undefined) {
+    db.players[i].category =
+      body.category === "goleiro" ? "goleiro" : "campo";
+  }
   await writeDb(db);
   return NextResponse.json(db.players[i]);
 }

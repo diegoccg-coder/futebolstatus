@@ -163,7 +163,7 @@ export default function AdminUsuariosPage() {
         </div>
         <div>
           <label className="text-xs text-emerald-300/90">
-            Vincular a jogador da pelada (opcional)
+            Vincular a jogador do grupo (opcional)
           </label>
           <select
             value={playerId}

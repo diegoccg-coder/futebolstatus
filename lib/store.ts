@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { createDefaultFinancasGlobais } from "./financas";
 import { migrateAppData } from "./migrate";
 import type { AppData } from "./types";
 import { supabaseAdmin, isSupabaseConfigured } from "./supabase-admin";
@@ -17,6 +18,11 @@ const defaultData: AppData = {
   draftsByAgendamento: {},
   users: [],
   agendamentos: [],
+  championPhotosByAgendamento: {},
+  sorteioWorkspace: null,
+  financasByAgendamento: {},
+  financasGlobais: createDefaultFinancasGlobais(),
+  financasHistorico: [],
 };
 
 function ensureFile(): void {

@@ -1,4 +1,4 @@
-# Pelada — aplicativo futebol
+# Futebol Status — aplicativo futebol
 
 Aplicativo local para cadastrar jogadores, sortear times (dois em campo ou **racha** com 3 ou 4 times), definir **ordem da fila** no sorteio, duração das partidas (ex.: 8 min), registrar gols, assistências e campeão, e ver rankings.
 
@@ -69,3 +69,22 @@ Mesmo no Supabase, o primeiro admin também é criado automaticamente na migraç
 
 - `npm run dev` — servidor de desenvolvimento
 - `npm run build` / `npm run start` — produção
+- `npm run backup-supabase` — exporta `public.pelada_state` para `backups/supabase/`
+- `npm run restore-supabase -- backups/supabase/pelada_state-latest.json` — restaura backup no Supabase
+
+## Backup diário (GitHub Actions)
+
+Para evitar perda de dados por sobrescrita, este projeto inclui workflow automático:
+
+- Arquivo: `.github/workflows/supabase-backup.yml`
+- Frequência: diária (03:15 UTC) + execução manual (`workflow_dispatch`)
+- Saída: artefato com backup JSON (`backups/supabase/*.json`) com retenção de 90 dias
+
+### Configurar no GitHub
+
+No repositório do GitHub, em **Settings > Secrets and variables > Actions**, crie:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Sem esses secrets, o workflow falha.

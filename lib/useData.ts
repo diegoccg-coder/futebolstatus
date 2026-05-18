@@ -3,15 +3,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import type { AppDataClient } from "./client-types";
+import { createDefaultFinancasGlobais } from "./financas";
+
+export type RefreshAppDataOptions = {
+  /** Não mostra “Carregando…” (útil para atualização em segundo plano, ex.: Sorteio a cada 2 min). */
+  silent?: boolean;
+};
 
 export function useAppData() {
   const [data, setData] = useState<AppDataClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const refresh = useCallback(async (options?: RefreshAppDataOptions) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const r = await fetch("/api/data", { cache: "no-store" });
       if (r.status === 401) {
@@ -32,11 +41,23 @@ export function useAppData() {
       setData({
         ...j,
         draftsByAgendamento: j.draftsByAgendamento ?? {},
+        championPhotosByAgendamento: j.championPhotosByAgendamento ?? {},
+        sorteioWorkspace: j.sorteioWorkspace ?? null,
+        financasByAgendamento: j.financasByAgendamento ?? {},
+        financasGlobais: j.financasGlobais ?? createDefaultFinancasGlobais(),
+        financasHistorico: j.financasHistorico ?? [],
       });
+      if (silent) {
+        setError(null);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro");
+      if (!silent) {
+        setError(e instanceof Error ? e.message : "Erro");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 

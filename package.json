@@ -1,5 +1,5 @@
 {
-  "name": "aplicativo-futebol",
+  "name": "futebol-status",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "import-db": "node scripts/import-database-json.mjs"
+    "import-db": "node scripts/import-database-json.mjs",
+    "backup-supabase": "node scripts/backup-supabase.mjs",
+    "restore-supabase": "node scripts/restore-supabase-backup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",

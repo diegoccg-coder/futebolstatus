@@ -1,12 +1,25 @@
 import bcrypt from "bcryptjs";
+import {
+  legacyMoneyFromRachaRaw,
+  mergeFinancasGlobaisFillingNulls,
+  normalizeFinancasGlobaisFromUnknown,
+  normalizeFinancasHistoricoFromUnknown,
+  normalizeRachaFinancasFromUnknown,
+} from "./financas";
 import type {
   Agendamento,
   AppData,
+  ChampionPhotosEntry,
+  FinancasGlobais,
+  FinancasHistoricoEntry,
   Goal,
   LastDraft,
   Match,
   MatchFormat,
   MatchTeamSlot,
+  Player,
+  RachaFinancas,
+  SorteioSharedWorkspace,
   UserRecord,
 } from "./types";
 
@@ -31,10 +44,13 @@ type LegacyLastDraft = {
   teamCount?: number;
   durationMinutes?: number;
   teams?: MatchTeamSlot[];
+  golEntradaPlayerId?: string | null;
+  golFundoPlayerId?: string | null;
 };
 
 type LegacyMatch = {
   id: string;
+  sortIndex?: number;
   agendamentoId?: string | null;
   date: string;
   weekLabel?: string;
@@ -42,6 +58,7 @@ type LegacyMatch = {
   teamB?: { name: string; playerIds: string[] };
   goals?: Goal[];
   championSide?: "A" | "B" | null;
+  drawResult?: boolean;
   durationMinutes?: number;
   format?: MatchFormat;
   teamCount?: 2 | 3 | 4;
@@ -55,6 +72,22 @@ type LegacyMatch = {
   penaltisConvertidos1?: number | null;
   cartoesAmarelos?: string[];
 };
+
+function fallbackSortIndexFromId(id: string): number {
+  const head = id.split("-")[0] ?? id;
+  const parsed = parseInt(head, 36);
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function normalizeSortIndex(o: LegacyMatch): { value: number; migrated: boolean } {
+  if (typeof o.sortIndex === "number" && Number.isFinite(o.sortIndex)) {
+    return { value: o.sortIndex, migrated: false };
+  }
+  return {
+    value: fallbackSortIndexFromId(String(o.id ?? "")),
+    migrated: true,
+  };
+}
 
 function normalizeScoringFields(o: LegacyMatch): {
   placarField0: number | null;
@@ -122,6 +155,8 @@ function normalizeScoringFields(o: LegacyMatch): {
 export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean } {
   const o = raw as LegacyMatch;
   let migrated = false;
+  const { value: sortIndex, migrated: sortMigrated } = normalizeSortIndex(o);
+  if (sortMigrated) migrated = true;
   if (!o?.id || !o.date) {
     migrated = true;
     const { migrated: scMigrated, ...scoring } = normalizeScoringFields(o);
@@ -129,6 +164,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
     return {
       match: {
         id: String(o?.id ?? "unknown"),
+        sortIndex,
         agendamentoId: null,
         date: String(o?.date ?? new Date().toISOString().slice(0, 10)),
         durationMinutes: 8,
@@ -141,6 +177,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
         fieldTeamIndexes: [0, 1],
         goals: [],
         championTeamIndex: null,
+        drawResult: false,
         ...scoring,
       },
       migrated,
@@ -172,6 +209,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
     return {
       match: {
         id: o.id,
+        sortIndex,
         agendamentoId: o.agendamentoId ?? null,
         date: o.date,
         weekLabel: o.weekLabel,
@@ -185,6 +223,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
             : [0, 1],
         goals: Array.isArray(o.goals) ? o.goals : [],
         championTeamIndex,
+        drawResult: Boolean(o.drawResult),
         ...scoring,
       },
       migrated,
@@ -201,6 +240,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
     return {
       match: {
         id: o.id,
+        sortIndex,
         agendamentoId: o.agendamentoId ?? null,
         date: o.date,
         weekLabel: o.weekLabel,
@@ -222,6 +262,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
         fieldTeamIndexes: [0, 1],
         goals: Array.isArray(o.goals) ? o.goals : [],
         championTeamIndex,
+        drawResult: Boolean(o.drawResult),
         ...scoring,
       },
       migrated,
@@ -234,6 +275,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
   return {
     match: {
       id: o.id,
+      sortIndex,
       agendamentoId: o.agendamentoId ?? null,
       date: o.date,
       weekLabel: o.weekLabel,
@@ -247,6 +289,7 @@ export function normalizeMatch(raw: unknown): { match: Match; migrated: boolean 
       fieldTeamIndexes: [0, 1],
       goals: [],
       championTeamIndex: null,
+      drawResult: Boolean(o.drawResult),
       ...scoring,
     },
     migrated,
@@ -264,41 +307,49 @@ export function normalizeLastDraft(raw: unknown): { draft: LastDraft | null; mig
     }));
     const n = teams.length;
     const teamCount = (n === 2 || n === 3 || n === 4 ? n : 2) as 2 | 3 | 4;
-    return {
-      draft: {
-        format: (o.format as MatchFormat) || (teamCount === 2 ? "dupla" : "racha"),
-        agendamentoId: o.agendamentoId ?? null,
-        teamCount,
-        durationMinutes: typeof o.durationMinutes === "number" ? o.durationMinutes : 8,
-        teams,
-        createdAt: o.createdAt,
-      },
-      migrated: false,
+    const draft: LastDraft = {
+      format: (o.format as MatchFormat) || (teamCount === 2 ? "dupla" : "racha"),
+      agendamentoId: o.agendamentoId ?? null,
+      teamCount,
+      durationMinutes: typeof o.durationMinutes === "number" ? o.durationMinutes : 8,
+      teams,
+      createdAt: o.createdAt,
     };
+    if (typeof o.golEntradaPlayerId === "string" || o.golEntradaPlayerId === null) {
+      draft.golEntradaPlayerId = o.golEntradaPlayerId;
+    }
+    if (typeof o.golFundoPlayerId === "string" || o.golFundoPlayerId === null) {
+      draft.golFundoPlayerId = o.golFundoPlayerId;
+    }
+    return { draft, migrated: false };
   }
   if (o.teamA && o.teamB && o.createdAt) {
-    return {
-      draft: {
-        format: "dupla",
-        agendamentoId: o.agendamentoId ?? null,
-        teamCount: 2,
-        durationMinutes: typeof o.durationMinutes === "number" ? o.durationMinutes : 8,
-        teams: [
-          {
-            name: String(o.teamA.name || "Time A").trim() || "Time A",
-            playerIds: o.teamA.playerIds ?? [],
-            rotationOrder: 1,
-          },
-          {
-            name: String(o.teamB.name || "Time B").trim() || "Time B",
-            playerIds: o.teamB.playerIds ?? [],
-            rotationOrder: 2,
-          },
-        ],
-        createdAt: o.createdAt,
-      },
-      migrated: true,
+    const draft: LastDraft = {
+      format: "dupla",
+      agendamentoId: o.agendamentoId ?? null,
+      teamCount: 2,
+      durationMinutes: typeof o.durationMinutes === "number" ? o.durationMinutes : 8,
+      teams: [
+        {
+          name: String(o.teamA.name || "Time A").trim() || "Time A",
+          playerIds: o.teamA.playerIds ?? [],
+          rotationOrder: 1,
+        },
+        {
+          name: String(o.teamB.name || "Time B").trim() || "Time B",
+          playerIds: o.teamB.playerIds ?? [],
+          rotationOrder: 2,
+        },
+      ],
+      createdAt: o.createdAt,
     };
+    if (typeof o.golEntradaPlayerId === "string" || o.golEntradaPlayerId === null) {
+      draft.golEntradaPlayerId = o.golEntradaPlayerId;
+    }
+    if (typeof o.golFundoPlayerId === "string" || o.golFundoPlayerId === null) {
+      draft.golFundoPlayerId = o.golFundoPlayerId;
+    }
+    return { draft, migrated: true };
   }
   return { draft: null, migrated: false };
 }
@@ -327,7 +378,7 @@ export function migrateAppData(parsed: Partial<AppData>): {
   dirty: boolean;
 } {
   let dirty = false;
-  const matches = Array.isArray(parsed.matches)
+  let matches = Array.isArray(parsed.matches)
     ? parsed.matches.map((m) => {
         const { match, migrated } = normalizeMatch(m);
         if (migrated) dirty = true;
@@ -355,6 +406,16 @@ export function migrateAppData(parsed: Partial<AppData>): {
     if (am) dirty = true;
     return item;
   });
+  if (matches.length > 0 && agendamentos.length > 0) {
+    const agendamentoDateById = new Map(agendamentos.map((a) => [a.id, a.date]));
+    matches = matches.map((m) => {
+      if (!m.agendamentoId) return m;
+      const rachaDate = agendamentoDateById.get(m.agendamentoId);
+      if (!rachaDate || m.date === rachaDate) return m;
+      dirty = true;
+      return { ...m, date: rachaDate };
+    });
+  }
 
   let draftsByAgendamento: Record<string, LastDraft> = {};
   const rawDrafts = (parsed as Partial<AppData>).draftsByAgendamento;
@@ -380,13 +441,164 @@ export function migrateAppData(parsed: Partial<AppData>): {
     dirty = true;
   }
 
+  let players: Player[] = Array.isArray(parsed.players)
+    ? (parsed.players as Player[]).map((p) => {
+        const category: Player["category"] =
+          p.category === "goleiro" ? "goleiro" : "campo";
+        if (p.category !== category) dirty = true;
+        return { ...p, category };
+      })
+    : [];
+  if (!Array.isArray(parsed.players)) {
+    players = [];
+    dirty = true;
+  }
+
+  let championPhotosByAgendamento: Record<string, ChampionPhotosEntry> = {};
+  const rawPhotos = (parsed as Partial<AppData>).championPhotosByAgendamento;
+  if (rawPhotos && typeof rawPhotos === "object" && !Array.isArray(rawPhotos)) {
+    for (const [key, val] of Object.entries(rawPhotos)) {
+      if (!key || typeof val !== "object" || !val) continue;
+      const v = val as Partial<ChampionPhotosEntry>;
+      const team =
+        v.bestTeamPhotoUrl === null
+          ? null
+          : typeof v.bestTeamPhotoUrl === "string"
+            ? v.bestTeamPhotoUrl
+            : null;
+      const player =
+        v.bestPlayerPhotoUrl === null
+          ? null
+          : typeof v.bestPlayerPhotoUrl === "string"
+            ? v.bestPlayerPhotoUrl
+            : null;
+      const updatedAt =
+        typeof v.updatedAt === "string" ? v.updatedAt : new Date().toISOString();
+      championPhotosByAgendamento[key] = {
+        bestTeamPhotoUrl: team,
+        bestPlayerPhotoUrl: player,
+        updatedAt,
+      };
+    }
+  } else if ((parsed as Partial<AppData>).championPhotosByAgendamento !== undefined) {
+    championPhotosByAgendamento = {};
+    dirty = true;
+  }
+
+  let sorteioWorkspace: SorteioSharedWorkspace | null = null;
+  const rawWs = (parsed as Partial<AppData>).sorteioWorkspace;
+  if (rawWs === null) {
+    sorteioWorkspace = null;
+  } else if (rawWs && typeof rawWs === "object" && !Array.isArray(rawWs)) {
+    const w = rawWs as Partial<SorteioSharedWorkspace>;
+    const slotsOk =
+      Array.isArray(w.slots) &&
+      w.slots.length === 5 &&
+      w.slots.every((s) => s === null || (typeof s === "object" && s !== null));
+    const modeOk = w.mode === "dupla" || w.mode === "racha";
+    const rachaOk = w.rachaCount === 3 || w.rachaCount === 4;
+    const updatedOk = typeof w.updatedAt === "string" && w.updatedAt.length > 0;
+    if (
+      slotsOk &&
+      modeOk &&
+      rachaOk &&
+      updatedOk &&
+      typeof w.activeSlotIndex === "number" &&
+      Array.isArray(w.selectedIds) &&
+      Array.isArray(w.teamNames) &&
+      typeof w.durationMinutes === "number" &&
+      typeof w.agendamentoId === "string"
+    ) {
+      sorteioWorkspace = {
+        slots: w.slots as SorteioSharedWorkspace["slots"],
+        activeSlotIndex: w.activeSlotIndex,
+        selectedIds: w.selectedIds.filter((x) => typeof x === "string"),
+        teamNames: w.teamNames.filter((x) => typeof x === "string"),
+        mode: w.mode as "dupla" | "racha",
+        rachaCount: w.rachaCount as 3 | 4,
+        durationMinutes: w.durationMinutes,
+        agendamentoId: w.agendamentoId as string,
+        updatedAt: w.updatedAt as string,
+        updatedByUserId:
+          w.updatedByUserId === null || typeof w.updatedByUserId === "string"
+            ? w.updatedByUserId
+            : null,
+        updatedByName:
+          w.updatedByName === null || typeof w.updatedByName === "string"
+            ? w.updatedByName
+            : undefined,
+      };
+    } else {
+      sorteioWorkspace = null;
+      dirty = true;
+    }
+  } else if ((parsed as Partial<AppData>).sorteioWorkspace !== undefined) {
+    sorteioWorkspace = null;
+    dirty = true;
+  }
+
+  let financasByAgendamento: Record<string, RachaFinancas> = {};
+  const rawFin = (parsed as Partial<AppData>).financasByAgendamento;
+  let bestLegacyMoney: { at: string; partial: Partial<FinancasGlobais> } | null = null;
+  if (rawFin && typeof rawFin === "object" && !Array.isArray(rawFin)) {
+    for (const [key, val] of Object.entries(rawFin)) {
+      if (!key) continue;
+      const partial = legacyMoneyFromRachaRaw(val);
+      if (partial) {
+        const o =
+          val && typeof val === "object" && !Array.isArray(val)
+            ? (val as Record<string, unknown>)
+            : {};
+        const at = typeof o.updatedAt === "string" ? o.updatedAt : "";
+        if (at && (!bestLegacyMoney || at > bestLegacyMoney.at)) {
+          bestLegacyMoney = { at, partial };
+        }
+      }
+      financasByAgendamento[key] = normalizeRachaFinancasFromUnknown(key, val);
+    }
+  } else if ((parsed as Partial<AppData>).financasByAgendamento !== undefined) {
+    financasByAgendamento = {};
+    dirty = true;
+  }
+
+  let financasGlobais = normalizeFinancasGlobaisFromUnknown(
+    (parsed as Partial<AppData>).financasGlobais
+  );
+  if ((parsed as Partial<AppData>).financasGlobais === undefined) {
+    dirty = true;
+  }
+  if (bestLegacyMoney) {
+    const merged = mergeFinancasGlobaisFillingNulls(financasGlobais, bestLegacyMoney.partial);
+    if (JSON.stringify(merged) !== JSON.stringify(financasGlobais)) {
+      financasGlobais = merged;
+      dirty = true;
+    }
+  }
+
+  let financasHistorico: FinancasHistoricoEntry[] = [];
+  const rawHist = (parsed as Partial<AppData>).financasHistorico;
+  if (Array.isArray(rawHist)) {
+    for (const row of rawHist) {
+      const e = normalizeFinancasHistoricoFromUnknown(row);
+      if (e) financasHistorico.push(e);
+      else dirty = true;
+    }
+  } else if (rawHist !== undefined) {
+    dirty = true;
+  }
+
   const data: AppData = {
-    players: Array.isArray(parsed.players) ? parsed.players : [],
+    players,
     matches,
     lastDraft,
     draftsByAgendamento,
     users,
     agendamentos,
+    championPhotosByAgendamento,
+    sorteioWorkspace,
+    financasByAgendamento,
+    financasGlobais,
+    financasHistorico,
   };
 
   return { data, dirty };
