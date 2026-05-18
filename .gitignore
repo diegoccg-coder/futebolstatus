@@ -3,6 +3,6 @@ node_modules
 out
 *.log
 .env*.local
-data/
+/data/
 backups/
 .vercel

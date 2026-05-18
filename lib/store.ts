@@ -38,16 +38,15 @@ export async function readDb(): Promise<AppData> {
   if (isSupabaseConfigured() && supabaseAdmin) {
     // Supabase: guarda o estado inteiro do app em um único `jsonb`.
     let rowData: unknown = null;
-    try {
-      const { data } = await supabaseAdmin
-        .from(SUPA_TABLE)
-        .select("data")
-        .eq("id", SUPA_STATE_ID)
-        .single();
-      rowData = data?.data ?? null;
-    } catch {
-      rowData = null;
+    const { data: row, error: readError } = await supabaseAdmin
+      .from(SUPA_TABLE)
+      .select("data")
+      .eq("id", SUPA_STATE_ID)
+      .single();
+    if (readError && readError.code !== "PGRST116") {
+      throw new Error(readError.message || "Erro ao ler dados no Supabase");
     }
+    rowData = row?.data ?? null;
 
     const parsed = (rowData ?? defaultData) as Partial<AppData>;
     const { data, dirty } = migrateAppData(parsed);
