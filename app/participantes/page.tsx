@@ -49,14 +49,8 @@ export default function ParticipantesPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-white">Quem vai jogar</h1>
-        <p className="mt-1 text-sm text-emerald-100/75">
-          Escolha o racha para ver os jogadores do sorteio vinculado na página Sorteio (&quot;Vincular
-          ao racha&quot;).
-        </p>
-      </div>
+    <div className="space-y-4">
+      <h1 className="font-display text-xl font-bold text-white">Quem vai jogar</h1>
 
       {agendamentosSorted.length === 0 ? (
         <p className="text-emerald-400/90">Nenhum racha na agenda ainda.</p>

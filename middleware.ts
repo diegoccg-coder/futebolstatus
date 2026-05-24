@@ -11,10 +11,11 @@ export default withAuth(
       path.startsWith("/sorteio") ||
       path.startsWith("/financas") ||
       path.startsWith("/admin") ||
-      path === "/jogos";
+      path === "/jogos" ||
+      path === "/historico-de-jogos";
 
     if (adminOnly && role !== "admin") {
-      return NextResponse.redirect(new URL("/painel", req.url));
+      return NextResponse.redirect(new URL("/", req.url));
     }
 
     return NextResponse.next();

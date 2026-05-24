@@ -74,13 +74,8 @@ export default function AgendaPage() {
   const list = [...data.agendamentos].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-white">Rachas marcados</h1>
-        <p className="mt-1 text-sm text-emerald-100/75">
-          Datas combinadas para os jogos. O administrador cadastra novos eventos.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <h1 className="font-display text-xl font-bold text-white">Rachas marcados</h1>
 
       {isAdmin && (
         <form

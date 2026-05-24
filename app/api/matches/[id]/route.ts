@@ -6,9 +6,22 @@ import {
   rachaDraftLinhaPlayerIds,
 } from "@/lib/matchUi";
 import { newId, readDb, writeDb } from "@/lib/store";
+import { sortMatchesForRacha } from "@/lib/jogos-helpers";
 import type { AppData, Goal, Match, MatchTeamSlot } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+function matchesInSameRacha(db: AppData, agendamentoId: string): Match[] {
+  return sortMatchesForRacha(
+    db.matches.filter((x) => x.agendamentoId === agendamentoId)
+  );
+}
+
+function renumberSortIndexes(matches: Match[]) {
+  matches.forEach((m, i) => {
+    m.sortIndex = i;
+  });
+}
 
 function clampPlacar(v: unknown): number | null {
   if (v === null || v === "") return null;
@@ -61,13 +74,35 @@ export async function PATCH(req: Request, context: Ctx) {
         { status: 400 }
       );
     }
-    const sameRacha = db.matches.filter((x) => x.agendamentoId === m.agendamentoId);
-    const minSort = sameRacha.reduce(
-      (acc, cur) => Math.min(acc, Number.isFinite(cur.sortIndex) ? cur.sortIndex : acc),
-      Number.POSITIVE_INFINITY
-    );
-    const base = Number.isFinite(minSort) ? minSort : Date.now();
-    m.sortIndex = base - 1;
+    const ordered = matchesInSameRacha(db, m.agendamentoId);
+    renumberSortIndexes(ordered);
+    const idx = ordered.findIndex((x) => x.id === m.id);
+    if (idx > 0) {
+      const [removed] = ordered.splice(idx, 1);
+      ordered.unshift(removed!);
+      renumberSortIndexes(ordered);
+    }
+    await writeDb(db);
+    return NextResponse.json(m);
+  }
+  if (body.moveInRacha === "up" || body.moveInRacha === "down") {
+    if (!m.agendamentoId) {
+      return NextResponse.json(
+        { error: "Apenas jogos vinculados a racha podem ser reordenados" },
+        { status: 400 }
+      );
+    }
+    const ordered = matchesInSameRacha(db, m.agendamentoId);
+    renumberSortIndexes(ordered);
+    const idx = ordered.findIndex((x) => x.id === m.id);
+    const target = body.moveInRacha === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || target < 0 || target >= ordered.length) {
+      return NextResponse.json({ error: "Não é possível mover nesta direção" }, { status: 400 });
+    }
+    const other = ordered[target]!;
+    const tmp = m.sortIndex;
+    m.sortIndex = other.sortIndex;
+    other.sortIndex = tmp;
     await writeDb(db);
     return NextResponse.json(m);
   }

@@ -112,14 +112,8 @@ export default function JogadoresPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-white">Jogadores</h1>
-        <p className="mt-1 text-sm text-emerald-100/75">
-          Cadastre jogadores de <strong>linha</strong> e <strong>goleiros</strong> separadamente.
-          O nível em estrelas vale para o equilíbrio do sorteio.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <h1 className="font-display text-xl font-bold text-white">Jogadores</h1>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">

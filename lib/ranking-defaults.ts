@@ -1,17 +1,19 @@
 /** Nomes padrão dos 4 times no racha (ranking e sorteio). */
 export const DEFAULT_RACHA_TEAM_NAMES = [
-  "Verde",
-  "Amarelo",
   "Preto",
   "Laranja",
+  "Amarelo",
+  "Azul",
 ] as const;
 
 export type DefaultRachaTeamName = (typeof DEFAULT_RACHA_TEAM_NAMES)[number];
 
+/** Rachas a partir desta data entram na pontuação do ranking (YYYY-MM-DD). */
+export const RANKING_START_DATE = "2026-05-18";
+
 /**
  * Converte o nome do time no jogo para um dos 4 canônicos, ou null se não for um deles.
- * Ignora "Time A/B", nomes antigos, etc., para o ranking de times listar só os 4 padrão.
- * "Azul" (legado) conta como Verde.
+ * "Verde" (legado) conta como Azul.
  */
 export function normalizeTeamNameForRanking(
   raw: string
@@ -19,9 +21,13 @@ export function normalizeTeamNameForRanking(
   const t = raw.trim();
   if (!t) return null;
   const lower = t.toLowerCase();
-  if (lower === "azul") return "Verde";
+  if (lower === "verde") return "Azul";
   for (const n of DEFAULT_RACHA_TEAM_NAMES) {
     if (n.toLowerCase() === lower) return n;
   }
   return null;
+}
+
+export function agendamentoCountsForRanking(date: string): boolean {
+  return date >= RANKING_START_DATE;
 }

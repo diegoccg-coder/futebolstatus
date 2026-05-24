@@ -8,13 +8,13 @@ const adminLinks = [
   { href: "/jogadores", label: "Jogadores" },
   { href: "/sorteio", label: "Sorteio" },
   { href: "/jogos", label: "Jogos" },
+  { href: "/historico-de-jogos", label: "Histórico" },
   { href: "/financas", label: "Finanças" },
   { href: "/admin/usuarios", label: "Usuários" },
 ];
 
 const allLinks = [
   { href: "/", label: "Início" },
-  { href: "/painel", label: "Painel" },
   { href: "/participantes", label: "Quem joga" },
   { href: "/agenda", label: "Rachas" },
   { href: "/resultados", label: "Resultados" },
@@ -34,7 +34,7 @@ export function NavBar() {
 
   return (
     <header className="border-b border-emerald-800/80 bg-pitch-950/90 backdrop-blur-sm sticky top-0 z-50">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-3 py-2">
         <Link
           href="/"
           className="font-display text-xl font-bold tracking-tight text-amber-300"
@@ -46,7 +46,7 @@ export function NavBar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`rounded-lg px-3 py-2 text-sm transition hover:bg-emerald-900/60 hover:text-white ${
+              className={`rounded-lg px-2 py-1.5 text-xs transition hover:bg-emerald-900/60 hover:text-white ${
                 pathname === item.href
                   ? "bg-emerald-900/50 text-white"
                   : "text-emerald-100/90"
@@ -60,7 +60,7 @@ export function NavBar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-lg px-3 py-2 text-sm transition hover:bg-amber-900/40 hover:text-amber-100 ${
+                className={`rounded-lg px-2 py-1.5 text-xs transition hover:bg-amber-900/40 hover:text-amber-100 ${
                   pathname === item.href || pathname.startsWith(item.href + "/")
                     ? "bg-amber-900/30 text-amber-200"
                     : "text-amber-200/85"
@@ -73,7 +73,7 @@ export function NavBar() {
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="rounded-lg px-3 py-2 text-sm text-emerald-400 hover:text-white"
+              className="rounded-lg px-2 py-1.5 text-xs text-emerald-400 hover:text-white"
             >
               Sair
             </button>

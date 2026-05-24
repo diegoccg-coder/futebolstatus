@@ -81,6 +81,15 @@ export function matchScoreLine(m: Match): string | null {
   return s;
 }
 
+/** Ordem em que os jogos aconteceram no racha (sortIndex, depois data). */
+export function sortMatchesChronologically(a: Match, b: Match): number {
+  const si = (a.sortIndex ?? 0) - (b.sortIndex ?? 0);
+  if (si !== 0) return si;
+  const da = a.date.localeCompare(b.date);
+  if (da !== 0) return da;
+  return a.id.localeCompare(b.id);
+}
+
 export function matchHeadline(m: Match): string {
   const idx = Array.isArray(m.fieldTeamIndexes) ? m.fieldTeamIndexes : [];
   let base: string;

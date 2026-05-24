@@ -2,11 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { matchHeadline, matchWinnerDisplayName } from "@/lib/matchUi";
+import {
+  fieldTeamIndexesSafe,
+  matchScoreLine,
+  sortMatchesChronologically,
+} from "@/lib/matchUi";
+import { DEFAULT_RACHA_TEAM_NAMES } from "@/lib/ranking-defaults";
+import { rankTeamsForAgendamento } from "@/lib/stats";
+import type { Match } from "@/lib/types";
 import { useAppData } from "@/lib/useData";
 
-/** Jogos antigos sem `agendamentoId` vinculado. */
 const SEM_RACHA = "__sem_racha__";
+
+function matchTeamsLabel(m: Match): string {
+  const idx = fieldTeamIndexesSafe(m);
+  if (idx.length >= 2) {
+    const a = m.teams[idx[0]]?.name ?? "Time 1";
+    const b = m.teams[idx[1]]?.name ?? "Time 2";
+    return `${a} × ${b}`;
+  }
+  return m.teams.map((t) => t.name).join(" · ");
+}
 
 export default function ResultadosPage() {
   const { data, loading, error, refresh } = useAppData();
@@ -50,7 +66,7 @@ export default function ResultadosPage() {
     const a = data.agendamentos.find((x) => x.id === id);
     if (!a) return id;
     const t = a.time ? ` · ${a.time}` : "";
-    return `${a.date}${t}${a.title ? ` — ${a.title}` : ""}`;
+    return `${new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR")}${t}${a.title ? ` — ${a.title}` : ""}`;
   };
 
   const matchesFiltered = data.matches.filter((m) => {
@@ -58,35 +74,37 @@ export default function ResultadosPage() {
     return m.agendamentoId === selectedId;
   });
 
-  const matches = [...matchesFiltered].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const matches = [...matchesFiltered].sort(sortMatchesChronologically);
+
+  const teamStats =
+    selectedId && selectedId !== SEM_RACHA
+      ? rankTeamsForAgendamento(
+          { ...data, agendamentos: data.agendamentos },
+          selectedId
+        )
+      : [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-white">Resultados</h1>
-        <p className="mt-1 text-sm text-emerald-100/75">
-          Escolha o racha para listar os jogos. Toque em um jogo para ver gols, cartões e vencedor.
-          Quem não é administrador vê tudo em modo leitura.
-        </p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-display text-xl font-bold text-white">Resultados</h1>
         <button
           type="button"
           onClick={() => void refresh()}
-          className="mt-3 rounded-lg border border-emerald-700 px-3 py-1.5 text-sm text-emerald-200 hover:bg-emerald-900/40"
+          className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-900/40"
         >
-          Atualizar lista
+          Atualizar
         </button>
       </div>
 
       {agendamentosSorted.length === 0 && !temJogosSemRacha ? (
-        <p className="text-emerald-400/90">Nenhum racha na agenda e nenhum jogo registrado.</p>
+        <p className="text-sm text-emerald-400/90">Nenhum racha ou jogo registrado.</p>
       ) : (
         <>
-          <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/30 p-4">
-            <label className="block text-sm font-medium text-amber-200/95">Racha</label>
+          <div>
+            <label className="text-xs text-amber-200/95">Racha</label>
             <select
-              className="mt-2 w-full max-w-xl rounded-lg border border-emerald-800/60 bg-pitch-950 px-3 py-2 text-emerald-100"
+              className="mt-1 w-full max-w-xl rounded-lg border border-emerald-800/60 bg-pitch-950 px-2 py-1.5 text-sm text-emerald-100"
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
             >
@@ -101,7 +119,7 @@ export default function ResultadosPage() {
               })}
               {temJogosSemRacha && (
                 <option value={SEM_RACHA}>
-                  Sem racha vinculado (
+                  Sem racha (
                   {data.matches.filter((m) => !m.agendamentoId).length} jogo
                   {data.matches.filter((m) => !m.agendamentoId).length !== 1 ? "s" : ""})
                 </option>
@@ -109,30 +127,56 @@ export default function ResultadosPage() {
             </select>
           </div>
 
-          {matches.length === 0 ? (
-            <p className="text-emerald-400/90">
-              Nenhum jogo registrado para este racha ainda.
-            </p>
-          ) : (
-            <ul className="divide-y divide-emerald-900/80 rounded-2xl border border-emerald-800/60">
-              {matches.map((m) => (
-                <li key={m.id}>
-                  <Link
-                    href={`/jogos/${m.id}`}
-                    className="flex flex-col gap-1 px-4 py-4 transition hover:bg-emerald-950/50 sm:flex-row sm:items-center sm:justify-between"
+          {selectedId && selectedId !== SEM_RACHA && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {DEFAULT_RACHA_TEAM_NAMES.map((name) => {
+                const row = teamStats.find((t) => t.name === name);
+                const wins = row?.wins ?? 0;
+                return (
+                  <div
+                    key={name}
+                    className="rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-2 py-1.5 text-center"
                   >
-                    <span className="font-medium text-white">{matchHeadline(m)}</span>
-                    <span className="text-sm text-emerald-300/90">
-                      {new Date(m.date + "T12:00:00").toLocaleDateString("pt-BR")}
-                      {m.weekLabel ? ` · ${m.weekLabel}` : ""}
-                      {m.teamCount > 2 ? ` · Racha (${m.teamCount})` : ""}
-                      {matchWinnerDisplayName(m)
-                        ? ` · Vencedor: ${matchWinnerDisplayName(m)}`
-                        : ""}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                    <p className="text-xs text-emerald-300/90">{name}</p>
+                    <p className="text-lg font-semibold tabular-nums text-white">{wins}</p>
+                    <p className="text-[10px] text-emerald-500/90">
+                      vitória{wins !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {matches.length === 0 ? (
+            <p className="text-sm text-emerald-400/90">Nenhum jogo neste racha.</p>
+          ) : (
+            <ul className="divide-y divide-emerald-900/80 rounded-lg border border-emerald-800/60">
+              {matches.map((m, i) => {
+                const score = matchScoreLine(m);
+                return (
+                  <li key={m.id}>
+                    <Link
+                      href={`/jogos/${m.id}`}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm transition hover:bg-emerald-950/50"
+                    >
+                      <span className="shrink-0 text-xs tabular-nums text-emerald-500">
+                        {i + 1}º
+                      </span>
+                      <span className="min-w-0 flex-1 font-medium text-white">
+                        {matchTeamsLabel(m)}
+                      </span>
+                      {score ? (
+                        <span className="shrink-0 font-semibold tabular-nums text-amber-200">
+                          {score}
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-xs text-emerald-500">—</span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

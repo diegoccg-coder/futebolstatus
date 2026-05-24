@@ -28,7 +28,7 @@ export default function AdminUsuariosPage() {
   async function loadUsers() {
     const r = await fetch("/api/users");
     if (r.status === 403) {
-      router.replace("/painel");
+      router.replace("/");
       return;
     }
     if (!r.ok) return;
@@ -40,7 +40,7 @@ export default function AdminUsuariosPage() {
     if (session?.user?.role === "admin") {
       loadUsers();
     } else if (status === "authenticated") {
-      router.replace("/painel");
+      router.replace("/");
     }
   }, [session, status, router]);
 

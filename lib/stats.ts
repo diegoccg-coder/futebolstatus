@@ -1,9 +1,8 @@
 import {
-
+  agendamentoCountsForRanking,
   DEFAULT_RACHA_TEAM_NAMES,
-
   normalizeTeamNameForRanking,
-
+  RANKING_START_DATE,
 } from "./ranking-defaults";
 
 import {
@@ -24,7 +23,7 @@ import {
 
 } from "./scoring";
 
-import type { AppData, LastDraft, Match, Player } from "./types";
+import type { Agendamento, AppData, LastDraft, Match, Player } from "./types";
 
 
 
@@ -97,10 +96,27 @@ export type GoalkeeperLeakRow = {
 
 
 type RankData = Pick<AppData, "players" | "matches"> & {
-
   draftsByAgendamento?: Record<string, LastDraft>;
-
+  agendamentos?: Agendamento[];
 };
+
+function matchEffectiveDate(m: Match, agendamentos: Agendamento[]): string {
+  if (m.agendamentoId) {
+    const ag = agendamentos.find((a) => a.id === m.agendamentoId);
+    if (ag) return ag.date;
+  }
+  return m.date;
+}
+
+/** Partidas que entram na pontuação geral (a partir de RANKING_START_DATE). */
+export function matchesCountedInRanking(data: RankData): Match[] {
+  const agendamentos = data.agendamentos ?? [];
+  return data.matches.filter((m) =>
+    agendamentoCountsForRanking(matchEffectiveDate(m, agendamentos))
+  );
+}
+
+export { RANKING_START_DATE };
 
 
 
@@ -170,39 +186,28 @@ function goalCountsForScorer(
 
 
 
-export function rankPlayers(data: RankData): PlayerRankRow[] {
-
+export function rankPlayers(
+  data: RankData,
+  options?: { matches?: Match[] }
+): PlayerRankRow[] {
   const drafts = data.draftsByAgendamento ?? {};
+  const matches = options?.matches ?? matchesCountedInRanking(data);
 
   const map = new Map<string, PlayerRankRow>();
-
   const linhaPlayers = data.players.filter((p) => p.category !== "goleiro");
 
-
-
   for (const p of data.players) {
-
     map.set(p.id, {
-
       player: p,
-
       goals: 0,
-
       wins: 0,
-
       games: 0,
-
       yellowCards: 0,
-
       points: 0,
-
     });
-
   }
 
-
-
-  for (const m of data.matches) {
+  for (const m of matches) {
 
     for (const p of linhaPlayers) {
 
@@ -290,17 +295,11 @@ export function playerPointEvents(
 
 
 
-  const matches = [...data.matches].sort((a, b) => {
-
+  const matches = [...matchesCountedInRanking(data)].sort((a, b) => {
     const da = a.date.localeCompare(b.date);
-
     if (da !== 0) return -da;
-
     return b.id.localeCompare(a.id);
-
   });
-
-
 
   for (const m of matches) {
 
@@ -433,41 +432,30 @@ export function playerPointEvents(
 /** Partidas só do racha (agendamento) indicado — mesma regra de pontos do ranking geral. */
 
 export function rankPlayersForAgendamento(
-
   data: RankData,
-
   agendamentoId: string
-
 ): PlayerRankRow[] {
-
-  return rankPlayers({
-
-    ...data,
-
-    matches: data.matches.filter((m) => m.agendamentoId === agendamentoId),
-
-  });
-
+  const agendamentos = data.agendamentos ?? [];
+  const ag = agendamentos.find((a) => a.id === agendamentoId);
+  if (ag && !agendamentoCountsForRanking(ag.date)) return [];
+  const matches = data.matches.filter((m) => m.agendamentoId === agendamentoId);
+  return rankPlayers(data, { matches });
 }
 
 
 
 export function rankTeamsForAgendamento(
-
-  data: Pick<AppData, "players" | "matches">,
-
+  data: RankData,
   agendamentoId: string
-
 ): TeamRankRow[] {
-
-  return rankTeams({
-
-    ...data,
-
+  const agendamentos = data.agendamentos ?? [];
+  const ag = agendamentos.find((a) => a.id === agendamentoId);
+  if (ag && !agendamentoCountsForRanking(ag.date)) {
+    return DEFAULT_RACHA_TEAM_NAMES.map((name) => ({ name, wins: 0, games: 0 }));
+  }
+  return rankTeams(data, {
     matches: data.matches.filter((m) => m.agendamentoId === agendamentoId),
-
   });
-
 }
 
 
@@ -490,21 +478,18 @@ export function sortTeamsByPerformance(rows: TeamRankRow[]): TeamRankRow[] {
 
 
 
-export function rankTeams(data: Pick<AppData, "players" | "matches">): TeamRankRow[] {
-
+export function rankTeams(
+  data: RankData,
+  options?: { matches?: Match[] }
+): TeamRankRow[] {
   const map = new Map<string, { wins: number; games: number }>();
-
-
+  const matches = options?.matches ?? matchesCountedInRanking(data);
 
   for (const name of DEFAULT_RACHA_TEAM_NAMES) {
-
     map.set(name, { wins: 0, games: 0 });
-
   }
 
-
-
-  for (const m of data.matches) {
+  for (const m of matches) {
 
     for (const i of fieldTeamIndexesSafe(m)) {
 
@@ -555,9 +540,7 @@ export function rankTeams(data: Pick<AppData, "players" | "matches">): TeamRankR
 
 
 export function rankGoalkeepersMostConceded(
-
-  data: Pick<AppData, "players" | "matches" | "draftsByAgendamento">
-
+  data: RankData
 ): GoalkeeperLeakRow[] {
 
   const rows = new Map<string, GoalkeeperLeakRow>();
@@ -582,10 +565,10 @@ export function rankGoalkeepersMostConceded(
 
 
 
-  for (const m of data.matches) {
+  const rankedMatches = matchesCountedInRanking(data);
 
+  for (const m of rankedMatches) {
     if (!m.agendamentoId) continue;
-
     if (m.placarField0 === null || m.placarField1 === null) continue;
 
     const draft = data.draftsByAgendamento?.[m.agendamentoId];

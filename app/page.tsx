@@ -1,90 +1,92 @@
-import Link from "next/link";
-import { getAuthSession } from "@/lib/auth-server";
+"use client";
 
-export default async function HomePage() {
-  const session = await getAuthSession();
-  const admin = session?.user?.role === "admin";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useAppData } from "@/lib/useData";
+
+const links = [
+  { href: "/participantes", label: "Quem joga" },
+  { href: "/agenda", label: "Rachas" },
+  { href: "/resultados", label: "Resultados" },
+  { href: "/ranking", label: "Ranking" },
+  { href: "/foto-do-campeao", label: "Foto do campeão" },
+];
+
+const adminLinks = [
+  { href: "/jogadores", label: "Jogadores" },
+  { href: "/sorteio", label: "Sorteio" },
+  { href: "/jogos", label: "Jogos" },
+  { href: "/historico-de-jogos", label: "Histórico de jogos" },
+  { href: "/financas", label: "Finanças" },
+  { href: "/admin/usuarios", label: "Usuários" },
+];
+
+export default function HomePage() {
+  const { data: session } = useSession();
+  const { data, loading, error } = useAppData();
+
+  if (loading) return <p className="text-emerald-200/80">Carregando…</p>;
+  if (error || !data) return <p className="text-red-300">{error ?? "Erro"}</p>;
+
+  const isAdmin = session?.user?.role === "admin";
+  const nextRachas = [...data.agendamentos]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-4">
       <div>
-        <h1 className="font-display text-3xl font-bold text-white md:text-4xl">
-          Futebol Status
-        </h1>
-        <p className="mt-2 max-w-2xl text-emerald-100/85">
-          Olá{session?.user?.name ? `, ${session.user.name}` : ""}. Use o{" "}
-          <Link href="/painel" className="text-amber-300 underline hover:text-amber-200">
-            painel
-          </Link>{" "}
-          para ver quem joga, rachas marcados, resultados e ranking.
-        </p>
+        <h1 className="font-display text-xl font-bold text-white">Início</h1>
+        {session?.user?.name && (
+          <p className="text-sm text-emerald-200/80">
+            Olá, <strong>{session.user.name}</strong>
+            {isAdmin ? " · admin" : ""}
+          </p>
+        )}
       </div>
 
-      <ul className="grid gap-4 sm:grid-cols-2">
-        <li>
-          <Link
-            href="/painel"
-            className="block rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-6 transition hover:border-amber-500/40"
-          >
-            <h2 className="font-display text-lg font-semibold text-amber-200">Painel</h2>
-            <p className="mt-2 text-sm text-emerald-100/80">Atalhos para jogadores e admin.</p>
-          </Link>
-        </li>
-        <li>
-          <Link
-            href="/participantes"
-            className="block rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-6 transition hover:border-amber-500/40"
-          >
-            <h2 className="font-display text-lg font-semibold text-amber-200">Quem joga</h2>
-            <p className="mt-2 text-sm text-emerald-100/80">Último sorteio e fila do racha.</p>
-          </Link>
-        </li>
-        <li>
-          <Link
-            href="/agenda"
-            className="block rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-6 transition hover:border-amber-500/40"
-          >
-            <h2 className="font-display text-lg font-semibold text-amber-200">Rachas</h2>
-            <p className="mt-2 text-sm text-emerald-100/80">Datas marcadas.</p>
-          </Link>
-        </li>
-        <li>
-          <Link
-            href="/resultados"
-            className="block rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-6 transition hover:border-amber-500/40"
-          >
-            <h2 className="font-display text-lg font-semibold text-amber-200">Resultados</h2>
-            <p className="mt-2 text-sm text-emerald-100/80">Jogos, gols e campeão.</p>
-          </Link>
-        </li>
-        <li>
-          <Link
-            href="/ranking"
-            className="block rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-6 transition hover:border-amber-500/40"
-          >
-            <h2 className="font-display text-lg font-semibold text-amber-200">Ranking</h2>
-            <p className="mt-2 text-sm text-emerald-100/80">Artilharia e times.</p>
-          </Link>
-        </li>
-        {admin && (
-          <li>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {links.map((item) => (
+          <li key={item.href}>
             <Link
-              href="/jogadores"
-              className="block rounded-2xl border border-amber-900/50 bg-amber-950/25 p-6 transition hover:border-amber-500/50"
+              href={item.href}
+              className="block rounded-lg border border-emerald-800/60 bg-emerald-950/40 px-3 py-2.5 text-sm font-medium text-amber-200 transition hover:border-amber-500/40"
             >
-              <h2 className="font-display text-lg font-semibold text-amber-200">
-                Admin · Jogadores
-              </h2>
-              <p className="mt-2 text-sm text-emerald-100/80">Cadastro dos jogadores do grupo.</p>
+              {item.label}
             </Link>
           </li>
-        )}
+        ))}
       </ul>
 
-      <p className="text-sm text-emerald-500/90">
-        Primeiro login do administrador: veja o arquivo <strong>README.md</strong> na pasta do
-        projeto (conta criada automaticamente se ainda não houver usuários).
-      </p>
+      {isAdmin && (
+        <div className="rounded-lg border border-amber-900/40 bg-amber-950/15 px-3 py-2.5">
+          <h2 className="text-sm font-semibold text-amber-200">Admin</h2>
+          <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+            {adminLinks.map((item) => (
+              <li key={item.href}>
+                <Link href={item.href} className="text-amber-100/90 underline">
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {nextRachas.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-amber-200">Próximos rachas</h2>
+          <ul className="mt-1 space-y-0.5 text-sm text-emerald-100/85">
+            {nextRachas.map((a) => (
+              <li key={a.id}>
+                {new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR")}
+                {a.time ? ` · ${a.time}` : ""}
+                {a.title ? ` — ${a.title}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
