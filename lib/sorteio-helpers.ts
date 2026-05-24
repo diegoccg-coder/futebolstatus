@@ -56,6 +56,30 @@ export function sumStarsIds(ids: string[], byId: Map<string, Player>): number {
   return ids.reduce((s, id) => s + (byId.get(id)?.stars ?? 0), 0);
 }
 
+/** Atualiza jogadores e soma de estrelas nos slots já sorteados (ex.: após editar estrelas). */
+export function refreshDrawSlotsFromPlayers(
+  slots: Array<DrawRunResult | null>,
+  byId: Map<string, Player>
+): Array<DrawRunResult | null> {
+  return slots.map((slot) => {
+    if (!slot) return null;
+    return {
+      ...slot,
+      teams: slot.teams.map((t) => {
+        const playerIds = [...t.playerIds];
+        const players = playerIds
+          .map((id) => byId.get(id))
+          .filter((x): x is Player => x != null);
+        return {
+          ...t,
+          players,
+          sumStars: sumStarsIds(playerIds, byId),
+        };
+      }),
+    };
+  });
+}
+
 export function movePlayerBetweenTeams(
   teams: DrawSlotRow[],
   fromTeamIdx: number,

@@ -16,6 +16,7 @@ import {
   assignGoalkeepersToGols,
   movePlayerBetweenTeams,
   pushDrawFifo,
+  refreshDrawSlotsFromPlayers,
   type DrawRunResult,
   type DrawSlotRow,
 } from "@/lib/sorteio-helpers";
@@ -94,6 +95,11 @@ export default function SorteioPage() {
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     }));
   }, [data, selectedKey]);
+
+  useEffect(() => {
+    if (!data) return;
+    setDrawSlots((prev) => refreshDrawSlotsFromPlayers(prev, playersById));
+  }, [data, playersById]);
 
   function applySharedWorkspace(ws: SorteioSharedWorkspace, byId: Map<string, Player>) {
     const serialized = sharedWorkspaceToSerialized(ws);
@@ -315,6 +321,21 @@ export default function SorteioPage() {
 
   function clearSel() {
     setSelected(new Set());
+  }
+
+  async function updateStars(p: Player, n: number) {
+    if (!isAdmin || n === p.stars) return;
+    const r = await fetch(`/api/players/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stars: n }),
+    });
+    if (!r.ok) {
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      alert(j.error || "Erro ao atualizar estrelas");
+      return;
+    }
+    await refresh({ silent: true });
   }
 
   const displayResult = drawSlots[activeSlotIndex];
@@ -569,14 +590,29 @@ export default function SorteioPage() {
             <ul className="mt-2 grid grid-cols-2 gap-1.5">
               {playersLinha.map((p) => (
                 <li key={p.id}>
-                  <label className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition ${selected.has(p.id) ? "border-amber-500/50 bg-amber-950/30" : "border-emerald-800/60 bg-emerald-950/30"}`}>
-                    <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} className="h-3.5 w-3.5 shrink-0 rounded border-emerald-600 text-amber-500" />
-                    <span className="min-w-0 flex-1 truncate font-medium text-white">{p.name}</span>
-                    <Stars value={p.stars} readOnly />
-                  </label>
+                  <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition ${selected.has(p.id) ? "border-amber-500/50 bg-amber-950/30" : "border-emerald-800/60 bg-emerald-950/30"}`}>
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                      <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} className="h-3.5 w-3.5 shrink-0 rounded border-emerald-600 text-amber-500" />
+                      <span className="min-w-0 truncate font-medium text-white">{p.name}</span>
+                    </label>
+                    <span
+                      className="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      {isAdmin ? (
+                        <Stars value={p.stars} onChange={(n) => void updateStars(p, n)} />
+                      ) : (
+                        <Stars value={p.stars} readOnly />
+                      )}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
+            {isAdmin && (
+              <p className="mt-1 text-[10px] text-emerald-500/85">Toque nas estrelas para alterar o nível (atualiza os grupos).</p>
+            )}
           </section>
 
           {/* 3. Grupos por estrela */}
