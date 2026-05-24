@@ -78,34 +78,32 @@ export default function JogadoresPage() {
     return <p className="text-red-300">{error ?? "Erro"}</p>;
   }
 
-  function renderPlayerRow(p: Player) {
+  function renderPlayerCard(p: Player) {
     return (
       <li
         key={p.id}
-        className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+        className="rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-2 py-1.5"
       >
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-          <span className="font-medium text-white">{p.name}</span>
-          <select
-            value={p.category}
-            onChange={(e) =>
-              void updateCategory(p, e.target.value as PlayerCategory)
-            }
-            className="max-w-xs rounded border border-emerald-800 bg-pitch-950 px-2 py-1 text-xs text-emerald-200"
-          >
-            <option value="campo">Linha</option>
-            <option value="goleiro">Goleiro</option>
-          </select>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <Stars value={p.stars} onChange={(n) => updateStars(p, n)} />
+        <div className="flex items-start justify-between gap-1">
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-white">{p.name}</span>
           <button
             type="button"
             onClick={() => removePlayer(p)}
-            className="text-sm text-red-400/90 hover:text-red-300"
+            className="shrink-0 text-[10px] text-red-400/90 hover:text-red-300"
           >
-            Excluir
+            ×
           </button>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <select
+            value={p.category}
+            onChange={(e) => void updateCategory(p, e.target.value as PlayerCategory)}
+            className="rounded border border-emerald-800 bg-pitch-950 px-1 py-0.5 text-[10px] text-emerald-200"
+          >
+            <option value="campo">Linha</option>
+            <option value="goleiro">GOL</option>
+          </select>
+          <Stars value={p.stars} onChange={(n) => updateStars(p, n)} />
         </div>
       </li>
     );
@@ -115,137 +113,94 @@ export default function JogadoresPage() {
     <div className="space-y-4">
       <h1 className="font-display text-xl font-bold text-white">Jogadores</h1>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <form
-            onSubmit={add}
-            className="flex flex-col gap-4 rounded-2xl border border-emerald-800/60 bg-emerald-950/50 p-6"
+      <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
+        <h2 className="text-sm font-semibold text-amber-200">1. Novo jogador</h2>
+        <form onSubmit={add} className="space-y-2">
+          <input
+            id="nome"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-lg border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-sm text-white placeholder-emerald-700"
+            placeholder="Nome"
+          />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-emerald-200/90">
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                name="cat"
+                checked={category === "campo"}
+                onChange={() => setCategory("campo")}
+                className="text-amber-500"
+              />
+              Linha
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                name="cat"
+                checked={category === "goleiro"}
+                onChange={() => setCategory("goleiro")}
+                className="text-amber-500"
+              />
+              Goleiro
+            </label>
+            <span className="text-emerald-400/90">Nível</span>
+            <Stars value={stars} onChange={setStars} />
+          </div>
+          <button
+            type="submit"
+            disabled={saving || !name.trim()}
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-pitch-950 hover:bg-amber-400 disabled:opacity-50"
           >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label
-                  htmlFor="nome"
-                  className="block text-sm font-medium text-emerald-200/90"
-                >
-                  Nome
-                </label>
-                <input
-                  id="nome"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white placeholder-emerald-700 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
-                  placeholder="Ex.: João"
-                />
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-emerald-200/90">
-                  Categoria
-                </span>
-                <div className="mt-2 flex gap-4">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="cat"
-                      checked={category === "campo"}
-                      onChange={() => setCategory("campo")}
-                      className="text-amber-500"
-                    />
-                    Linha
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="cat"
-                      checked={category === "goleiro"}
-                      onChange={() => setCategory("goleiro")}
-                      className="text-amber-500"
-                    />
-                    Goleiro
-                  </label>
-                </div>
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-emerald-200/90">Nível</span>
-                <div className="mt-2">
-                  <Stars value={stars} onChange={setStars} />
-                </div>
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={saving || !name.trim()}
-              className="rounded-xl bg-amber-500 px-5 py-2.5 font-medium text-pitch-950 transition hover:bg-amber-400 disabled:opacity-50"
+            {saving ? "Salvando…" : "Adicionar"}
+          </button>
+        </form>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-amber-200">2. Jogadores de linha</h2>
+        {linha.length === 0 ? (
+          <p className="mt-1 text-xs text-emerald-300/70">Nenhum jogador de linha.</p>
+        ) : (
+          <ul className="mt-2 grid grid-cols-2 gap-1.5">{linha.map(renderPlayerCard)}</ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-amber-200">3. Goleiros</h2>
+        {goleiros.length === 0 ? (
+          <p className="mt-1 text-xs text-emerald-300/70">Nenhum goleiro.</p>
+        ) : (
+          <ul className="mt-2 grid grid-cols-2 gap-1.5">{goleiros.map(renderPlayerCard)}</ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-amber-200">4. Grupos por estrela</h2>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {groups.map((g) => (
+            <div
+              key={g.stars}
+              className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-2"
             >
-              {saving ? "Salvando…" : "Adicionar"}
-            </button>
-          </form>
-
-          <div>
-            <h2 className="font-display text-lg font-semibold text-amber-200">
-              Jogadores de linha
-            </h2>
-            {linha.length === 0 ? (
-              <p className="mt-2 text-emerald-300/70">Nenhum jogador de linha.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-emerald-900/80 rounded-2xl border border-emerald-800/60 bg-emerald-950/30">
-                {linha.map(renderPlayerRow)}
-              </ul>
-            )}
-          </div>
-
-          <div>
-            <h2 className="font-display text-lg font-semibold text-amber-200">Goleiros</h2>
-            <p className="mt-1 text-xs text-emerald-500/90">
-              Aparecem em lista separada; no sorteio você pode marcar quem entra na rodada.
-            </p>
-            {goleiros.length === 0 ? (
-              <p className="mt-2 text-emerald-300/70">Nenhum goleiro cadastrado.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-emerald-900/80 rounded-2xl border border-emerald-800/60 bg-emerald-950/30">
-                {goleiros.map(renderPlayerRow)}
-              </ul>
-            )}
-          </div>
+              <p className="text-xs font-semibold text-amber-200">
+                {g.stars}★ ({g.players.length})
+              </p>
+              {g.players.length === 0 ? (
+                <p className="mt-1 text-[10px] text-emerald-500/80">—</p>
+              ) : (
+                <ul className="mt-1 space-y-0.5">
+                  {g.players.map((p) => (
+                    <li key={p.id} className="truncate text-xs text-white/95">
+                      {p.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
         </div>
-
-        <div className="space-y-4">
-          <h2 className="font-display text-lg font-semibold text-amber-200">
-            Grupos por estrela (só linha)
-          </h2>
-          <p className="text-sm text-emerald-100/75">
-            Goleiros não entram nestes grupos — use a lista à esquerda para o nível deles.
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {groups.map((g) => (
-              <div
-                key={g.stars}
-                className="rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-display text-base font-semibold text-amber-200">
-                    {g.stars} estrela{g.stars > 1 ? "s" : ""}
-                  </div>
-                  <div className="text-xs text-emerald-300/80">{g.players.length}</div>
-                </div>
-
-                {g.players.length === 0 ? (
-                  <p className="mt-3 text-xs text-emerald-500/80">Nenhum jogador</p>
-                ) : (
-                  <ul className="mt-3 space-y-2">
-                    {g.players.map((p) => (
-                      <li key={p.id} className="flex items-center justify-between">
-                        <span className="text-sm text-white/95">{p.name}</span>
-                        <Stars value={p.stars} readOnly />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -85,9 +85,10 @@ type Props = {
   durationMinutes: number;
   playersOnField: Player[];
   canControl: boolean;
+  heading?: string;
 };
 
-export function MatchTimers({ matchId, durationMinutes, playersOnField, canControl }: Props) {
+export function MatchTimers({ matchId, durationMinutes, playersOnField, canControl, heading = "Cronômetros" }: Props) {
   const [mainPausedAccum, setMainPausedAccum] = useState(0);
   const [mainRunStart, setMainRunStart] = useState<number | null>(null);
   const [, setMainTick] = useState(0);
@@ -229,146 +230,102 @@ export function MatchTimers({ matchId, durationMinutes, playersOnField, canContr
   const suspBlockedSelect = suspRunning && suspRemaining > 0;
   const canStartSusp = Boolean(suspPlayerId && suspRemaining === 0);
 
+  const btnPrimary =
+    "rounded-lg bg-amber-500 px-2 py-1 text-xs font-medium text-pitch-950 hover:bg-amber-400 disabled:opacity-40";
+  const btnSecondary =
+    "rounded-lg border border-emerald-700 px-2 py-1 text-xs text-emerald-100 hover:bg-emerald-900/50";
+
   return (
-    <section className="space-y-6">
-      <h2 className="font-display text-lg font-semibold text-amber-200">Cronômetros</h2>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-5">
-          <h3 className="font-display text-base font-semibold text-amber-200/95">
-            Tempo de jogo
-          </h3>
-          <p className="mt-1 text-xs text-emerald-500/90">
-            Contagem neste aparelho (local). Partida combinada: {durationMinutes} min (
-            {formatTimerMmSs(configSec)}).
-          </p>
+    <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
+      <h2 className="text-sm font-semibold text-amber-200">{heading}</h2>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg border border-emerald-800/50 bg-emerald-950/30 p-2">
+          <p className="text-xs font-medium text-amber-200/95">Tempo de jogo</p>
+          <p className="text-[10px] text-emerald-500/90">Local · meta {durationMinutes} min</p>
           <p
-            className={`mt-4 font-mono text-4xl font-bold tracking-tight tabular-nums ${
+            className={`mt-1 font-mono text-2xl font-bold tabular-nums ${
               overConfig ? "text-amber-300" : "text-white"
             }`}
           >
             {formatTimerMmSs(mainLiveSec)}
           </p>
-          {overConfig && (
-            <p className="mt-1 text-xs text-amber-200/90">
-              Acima do tempo combinado ({durationMinutes} min).
-            </p>
-          )}
           {canControl ? (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-1">
               {mainRunStart === null ? (
-                <button
-                  type="button"
-                  onClick={mainStart}
-                  className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-pitch-950 hover:bg-amber-400"
-                >
+                <button type="button" onClick={mainStart} className={btnPrimary}>
                   Iniciar
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={mainPause}
-                  className="rounded-xl border border-emerald-600 px-4 py-2 text-sm text-emerald-100 hover:bg-emerald-900/50"
-                >
+                <button type="button" onClick={mainPause} className={btnSecondary}>
                   Pausar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={mainReset}
-                className="rounded-xl border border-emerald-800 px-4 py-2 text-sm text-emerald-400 hover:bg-emerald-950/80"
-              >
+              <button type="button" onClick={mainReset} className={btnSecondary}>
                 Zerar
               </button>
             </div>
           ) : (
-            <p className="mt-3 text-xs text-emerald-500/90">Somente o admin controla o cronômetro.</p>
+            <p className="mt-1 text-[10px] text-emerald-500/90">Somente admin.</p>
           )}
         </div>
 
         <div
-          className={`rounded-2xl border p-5 ${
+          className={`rounded-lg border p-2 ${
             suspDoneFlash
               ? "border-amber-400/70 bg-amber-950/35"
               : "border-red-900/40 bg-red-950/15"
           }`}
         >
-          <h3 className="font-display text-base font-semibold text-amber-200/95">
-            Suspensão (1 min)
-          </h3>
-          <p className="mt-1 text-xs text-emerald-500/90">
-            Falta violenta ou impedir gol com a mão — escolha o jogador em campo e use a contagem
-            regressiva de 1 minuto.
-          </p>
+          <p className="text-xs font-medium text-amber-200/95">Suspensão (1 min)</p>
           {canControl && (
-            <div className="mt-3">
-              <label className="text-xs text-emerald-300/90">Jogador em campo</label>
-              <select
-                value={suspPlayerId}
-                onChange={(e) => setSuspPlayerId(e.target.value)}
-                disabled={suspBlockedSelect}
-                className="mt-1 w-full rounded-lg border border-emerald-800 bg-pitch-950 px-3 py-2 text-white disabled:opacity-50"
-              >
-                <option value="">Selecionar</option>
-                {playersOnField.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={suspPlayerId}
+              onChange={(e) => setSuspPlayerId(e.target.value)}
+              disabled={suspBlockedSelect}
+              className="mt-1 w-full rounded border border-emerald-800 bg-pitch-950 px-2 py-1 text-xs text-white disabled:opacity-50"
+            >
+              <option value="">Jogador em campo</option>
+              {playersOnField.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           )}
-          <p className="mt-4 font-mono text-3xl font-bold tabular-nums text-white">
+          <p className="mt-1 font-mono text-xl font-bold tabular-nums text-white">
             {suspRemaining > 0 ? formatTimerMmSs(suspRemaining) : "00:00"}
           </p>
           {suspName && suspRemaining > 0 && (
-            <p className="mt-1 text-sm text-emerald-200/90">
-              <strong className="text-white">{suspName}</strong>
-              {suspRunning ? " — em andamento" : " — pausado"}
+            <p className="text-[10px] text-emerald-200/90">
+              {suspName} {suspRunning ? "· andamento" : "· pausado"}
             </p>
           )}
           {suspDoneFlash && (
-            <p className="mt-2 text-sm font-medium text-amber-200">
-              Tempo cumprido — {suspName ?? "Jogador"} pode voltar.
+            <p className="text-xs font-medium text-amber-200">
+              {suspName ?? "Jogador"} pode voltar.
             </p>
           )}
           {canControl ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={!canStartSusp}
-                onClick={startSuspension}
-                className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-pitch-950 hover:bg-amber-400 disabled:opacity-40"
-              >
-                Iniciar 1 min
+            <div className="mt-2 flex flex-wrap gap-1">
+              <button type="button" disabled={!canStartSusp} onClick={startSuspension} className={btnPrimary}>
+                1 min
               </button>
               {suspRemaining > 0 && !suspRunning && (
-                <button
-                  type="button"
-                  onClick={resumeSusp}
-                  className="rounded-xl border border-emerald-600 px-4 py-2 text-sm text-emerald-100 hover:bg-emerald-900/50"
-                >
+                <button type="button" onClick={resumeSusp} className={btnSecondary}>
                   Retomar
                 </button>
               )}
               {suspRunning && suspRemaining > 0 && (
-                <button
-                  type="button"
-                  onClick={pauseSusp}
-                  className="rounded-xl border border-emerald-600 px-4 py-2 text-sm text-emerald-100 hover:bg-emerald-900/50"
-                >
+                <button type="button" onClick={pauseSusp} className={btnSecondary}>
                   Pausar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={resetSusp}
-                className="rounded-xl border border-emerald-800 px-4 py-2 text-sm text-emerald-400 hover:bg-emerald-950/80"
-              >
+              <button type="button" onClick={resetSusp} className={btnSecondary}>
                 Zerar
               </button>
             </div>
           ) : (
-            <p className="mt-3 text-xs text-emerald-500/90">Somente o admin inicia a suspensão.</p>
+            <p className="mt-1 text-[10px] text-emerald-500/90">Somente admin.</p>
           )}
         </div>
       </div>

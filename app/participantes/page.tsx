@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Stars } from "@/components/Stars";
+import { formatAgendamentoLabel } from "@/lib/agendamentos-ui";
 import { teamsByRotation } from "@/lib/matchUi";
 import { useAppData } from "@/lib/useData";
 
@@ -30,13 +31,6 @@ export default function ParticipantesPage() {
   if (loading) return <p className="text-emerald-200/80">Carregando…</p>;
   if (error || !data) return <p className="text-red-300">{error ?? "Erro"}</p>;
 
-  const agLabel = (id: string) => {
-    const a = data.agendamentos.find((x) => x.id === id);
-    if (!a) return id;
-    const t = a.time ? ` · ${a.time}` : "";
-    return `${a.date}${t}${a.title ? ` — ${a.title}` : ""}`;
-  };
-
   const draft =
     selectedId && data.draftsByAgendamento[selectedId]
       ? data.draftsByAgendamento[selectedId]
@@ -50,116 +44,111 @@ export default function ParticipantesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="font-display text-xl font-bold text-white">Quem vai jogar</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-display text-xl font-bold text-white">Quem vai jogar</h1>
+        <button
+          type="button"
+          onClick={() => refresh()}
+          className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-900/40"
+        >
+          Atualizar
+        </button>
+      </div>
 
       {agendamentosSorted.length === 0 ? (
-        <p className="text-emerald-400/90">Nenhum racha na agenda ainda.</p>
+        <p className="text-sm text-emerald-400/90">Nenhum racha na agenda ainda.</p>
       ) : (
         <>
-          <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/30 p-4">
-            <label className="block text-sm font-medium text-amber-200/95">Racha</label>
+          <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
+            <h2 className="text-sm font-semibold text-amber-200">1. Racha</h2>
             <select
-              className="mt-2 w-full max-w-xl rounded-lg border border-emerald-800/60 bg-pitch-950 px-3 py-2 text-emerald-100"
+              className="w-full rounded-lg border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-sm text-white"
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
             >
               {agendamentosSorted.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {agLabel(a.id)}
+                  {formatAgendamentoLabel(a)}
                   {data.draftsByAgendamento[a.id] ? "" : " (sem sorteio)"}
                 </option>
               ))}
             </select>
-          </div>
+          </section>
 
           {!draft ? (
-            <p className="text-emerald-400/90">
-              Este racha ainda não tem sorteio vinculado. Peça ao administrador para rodar o sorteio,
-              escolher o racha e usar &quot;Vincular ao racha&quot; na página Sorteio.
+            <p className="text-xs text-emerald-400/90">
+              Sem sorteio vinculado. Use a página Sorteio → Vincular ao racha.
             </p>
           ) : (
             <>
-              <p className="text-sm text-emerald-300/90">
-                Atualizado em {new Date(draft.createdAt).toLocaleString("pt-BR")} ·{" "}
-                {draft.teamCount} times · partidas de {draft.durationMinutes} min
-                {draft.format === "racha" ? " (racha)" : ""}.
+              <p className="text-xs text-emerald-300/90">
+                {new Date(draft.createdAt).toLocaleString("pt-BR")} · {draft.teamCount}T ·{" "}
+                {draft.durationMinutes} min{draft.format === "racha" ? " · racha" : ""}
               </p>
-              {(draft.golEntradaPlayerId || draft.golFundoPlayerId) && (
-                <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 p-4">
-                  <p className="text-sm font-medium text-amber-200/95">Goleiros (sorteio)</p>
-                  <ul className="mt-2 space-y-1 text-sm text-emerald-100/90">
-                    {draft.golEntradaPlayerId ? (
-                      <li className="flex justify-between gap-2">
-                        <span>Gol entrada</span>
-                        <span className="text-emerald-200">
-                          {playerName(draft.golEntradaPlayerId) ?? "—"}
-                        </span>
-                      </li>
-                    ) : null}
-                    {draft.golFundoPlayerId ? (
-                      <li className="flex justify-between gap-2">
-                        <span>Gol fundo</span>
-                        <span className="text-emerald-200">
-                          {playerName(draft.golFundoPlayerId) ?? "—"}
-                        </span>
-                      </li>
-                    ) : null}
-                  </ul>
-                </div>
+
+              {(draft.golEntradaPlayerId || draft.golFundoPlayerId || draft.format === "racha") && (
+                <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
+                  <h2 className="text-sm font-semibold text-amber-200">2. Goleiros e fila</h2>
+                  {(draft.golEntradaPlayerId || draft.golFundoPlayerId) && (
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {draft.golEntradaPlayerId && (
+                        <div className="rounded border border-sky-800/50 bg-pitch-950/40 px-2 py-1.5">
+                          <p className="text-[10px] text-sky-300/95">Gol entrada</p>
+                          <p className="font-medium text-white">{playerName(draft.golEntradaPlayerId) ?? "—"}</p>
+                        </div>
+                      )}
+                      {draft.golFundoPlayerId && (
+                        <div className="rounded border border-sky-800/50 bg-pitch-950/40 px-2 py-1.5">
+                          <p className="text-[10px] text-sky-300/95">Gol fundo</p>
+                          <p className="font-medium text-white">{playerName(draft.golFundoPlayerId) ?? "—"}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {draft.format === "racha" && (
+                    <ol className="list-decimal space-y-0.5 pl-4 text-xs text-emerald-100/90">
+                      {teamsByRotation(draft.teams).map((t) => (
+                        <li key={`${t.name}-${t.rotationOrder}`}>{t.name}</li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
               )}
-              {draft.format === "racha" && (
-                <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/30 p-4">
-                  <p className="text-sm font-medium text-amber-200/95">Ordem da fila</p>
-                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-emerald-100/90">
-                    {teamsByRotation(draft.teams).map((t) => (
-                      <li key={`${t.name}-${t.rotationOrder}`}>{t.name}</li>
-                    ))}
-                  </ol>
+
+              <section>
+                <h2 className="text-sm font-semibold text-amber-200">3. Times</h2>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {draft.teams.map((t, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-2"
+                    >
+                      <p className="text-xs font-semibold text-amber-200">
+                        {t.name}
+                        {draft.teamCount > 2 && (
+                          <span className="font-normal text-emerald-500/90"> · {t.rotationOrder}º</span>
+                        )}
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {t.playerIds.map((pid) => {
+                          const p = data.players.find((x) => x.id === pid);
+                          if (!p) return null;
+                          return (
+                            <li key={pid} className="flex items-center justify-between gap-1 text-[11px]">
+                              <span className="min-w-0 truncate text-white/95">{p.name}</span>
+                              <Stars value={p.stars} readOnly />
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
-              )}
-              <div
-                className={`grid gap-6 ${
-                  draft.teams.length <= 2 ? "md:grid-cols-2" : "sm:grid-cols-2"
-                }`}
-              >
-                {draft.teams.map((t, i) => (
-                  <div
-                    key={i}
-                    className="rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-5"
-                  >
-                    <h2 className="font-display text-lg font-semibold text-amber-200">
-                      {t.name}
-                    </h2>
-                    {draft.teamCount > 2 && (
-                      <p className="text-xs text-emerald-500/90">Fila: {t.rotationOrder}º</p>
-                    )}
-                    <ul className="mt-3 space-y-2">
-                      {t.playerIds.map((pid) => {
-                        const p = data.players.find((x) => x.id === pid);
-                        if (!p) return null;
-                        return (
-                          <li key={pid} className="flex justify-between text-sm">
-                            <span>{p.name}</span>
-                            <Stars value={p.stars} readOnly />
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+              </section>
             </>
           )}
         </>
       )}
-
-      <button
-        type="button"
-        onClick={() => refresh()}
-        className="text-sm text-emerald-400 underline hover:text-emerald-300"
-      >
-        Atualizar
-      </button>
     </div>
   );
 }
