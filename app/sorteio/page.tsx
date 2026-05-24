@@ -37,7 +37,7 @@ const EMPTY_SLOTS: Array<DrawRunResult | null> = [
 
 export default function SorteioPage() {
   const { data: session } = useSession();
-  const { data, loading, error, refresh } = useAppData();
+  const { data, loading, error, refresh, patchPlayer } = useAppData();
   const [agendamentoId, setAgendamentoId] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<SorteioMode>("racha");
@@ -325,17 +325,27 @@ export default function SorteioPage() {
 
   async function updateStars(p: Player, n: number) {
     if (!isAdmin || n === p.stars) return;
-    const r = await fetch(`/api/players/${p.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stars: n }),
-    });
-    if (!r.ok) {
-      const j = (await r.json().catch(() => ({}))) as { error?: string };
-      alert(j.error || "Erro ao atualizar estrelas");
-      return;
+    const prevStars = p.stars;
+    suppressPersistUntilRef.current = Date.now() + 2000;
+    patchPlayer({ ...p, stars: n });
+    try {
+      const r = await fetch(`/api/players/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stars: n }),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        patchPlayer({ ...p, stars: prevStars });
+        alert(j.error || "Erro ao atualizar estrelas");
+        return;
+      }
+      const updated = (await r.json()) as Player;
+      patchPlayer(updated);
+    } catch {
+      patchPlayer({ ...p, stars: prevStars });
+      alert("Erro ao atualizar estrelas");
     }
-    await refresh({ silent: true });
   }
 
   const displayResult = drawSlots[activeSlotIndex];

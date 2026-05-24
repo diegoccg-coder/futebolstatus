@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import type { AppDataClient } from "./client-types";
+import type { Player } from "./types";
 import { createDefaultFinancasGlobais } from "./financas";
 
 export type RefreshAppDataOptions = {
@@ -61,9 +62,21 @@ export function useAppData() {
     }
   }, []);
 
+  const patchPlayer = useCallback((updated: Player) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        players: prev.players.map((p) =>
+          p.id === updated.id ? { ...p, ...updated } : p
+        ),
+      };
+    });
+  }, []);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { data, loading, error, refresh };
+  return { data, loading, error, refresh, patchPlayer };
 }

@@ -6,7 +6,7 @@ import { useAppData } from "@/lib/useData";
 import type { Player, PlayerCategory } from "@/lib/types";
 
 export default function JogadoresPage() {
-  const { data, loading, error, refresh } = useAppData();
+  const { data, loading, error, refresh, patchPlayer } = useAppData();
   const [name, setName] = useState("");
   const [stars, setStars] = useState(3);
   const [category, setCategory] = useState<PlayerCategory>("campo");
@@ -37,12 +37,24 @@ export default function JogadoresPage() {
   }
 
   async function updateStars(p: Player, n: number) {
-    await fetch(`/api/players/${p.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stars: n }),
-    });
-    await refresh();
+    if (n === p.stars) return;
+    const prevStars = p.stars;
+    patchPlayer({ ...p, stars: n });
+    try {
+      const r = await fetch(`/api/players/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stars: n }),
+      });
+      if (!r.ok) {
+        patchPlayer({ ...p, stars: prevStars });
+        return;
+      }
+      const updated = (await r.json()) as Player;
+      patchPlayer(updated);
+    } catch {
+      patchPlayer({ ...p, stars: prevStars });
+    }
   }
 
   async function updateCategory(p: Player, next: PlayerCategory) {
