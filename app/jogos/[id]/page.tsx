@@ -277,47 +277,17 @@ export default function JogoDetalhePage() {
         )}
       </section>
 
-      {isAdmin && (
-        <section className="rounded-lg border border-amber-900/40 bg-amber-950/15 p-3 space-y-2">
-          <h2 className="text-sm font-semibold text-amber-200">2. Salvar detalhes</h2>
-          <p className="text-[10px] text-emerald-100/75">
-            Duração, nomes e placar só vão ao servidor ao salvar. Gols, cartões e vencedor salvam ao registrar.
-          </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="text-xs text-emerald-200/90">
-              Min
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={formDuration}
-                onChange={(e) => setFormDuration(Number(e.target.value) || 1)}
-                className="ml-1 w-12 rounded border border-emerald-800 bg-pitch-950 px-1 py-0.5 text-white"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={savingDetails}
-              onClick={() => void salvarDetalhesPartida()}
-              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-pitch-950 hover:bg-amber-400 disabled:opacity-50"
-            >
-              {savingDetails ? "Salvando…" : "Salvar alterações"}
-            </button>
-          </div>
-        </section>
-      )}
-
       <MatchTimers
         matchId={match.id}
         durationMinutes={match.durationMinutes}
         playersOnField={allInMatch()}
         canControl={isAdmin}
-        heading="3. Cronômetros"
+        heading="2. Cronômetros"
       />
 
       {match.teamCount > 2 && (
         <section className="rounded-lg border border-amber-900/35 bg-amber-950/15 p-3">
-          <h2 className="text-sm font-semibold text-amber-200">4. Ordem da fila</h2>
+          <h2 className="text-sm font-semibold text-amber-200">3. Ordem da fila</h2>
           <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-emerald-200/90">
             {fila.map((t) => (
               <li key={`${t.name}-${t.rotationOrder}`}>
@@ -329,7 +299,7 @@ export default function JogoDetalhePage() {
       )}
 
       <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
-        <h2 className="text-sm font-semibold text-amber-200">5. Times e escalação</h2>
+        <h2 className="text-sm font-semibold text-amber-200">4. Times e escalação</h2>
         {isAdmin && (
           <div className="grid grid-cols-2 gap-2">
             {[fieldA, fieldB].map((idx) => {
@@ -383,7 +353,7 @@ export default function JogoDetalhePage() {
       </section>
 
       <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
-        <h2 className="text-sm font-semibold text-amber-200">6. Placar</h2>
+        <h2 className="text-sm font-semibold text-amber-200">5. Placar</h2>
         {isAdmin ? (
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs text-emerald-300/90">
@@ -466,7 +436,7 @@ export default function JogoDetalhePage() {
       </section>
 
       <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
-        <h2 className="text-sm font-semibold text-amber-200">7. Cartões amarelos</h2>
+        <h2 className="text-sm font-semibold text-amber-200">6. Cartões amarelos</h2>
         {isAdmin && (
           <div className="flex flex-wrap items-end gap-2">
             <select
@@ -521,7 +491,7 @@ export default function JogoDetalhePage() {
       </section>
 
       <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
-        <h2 className="text-sm font-semibold text-amber-200">8. Gols</h2>
+        <h2 className="text-sm font-semibold text-amber-200">7. Gols</h2>
         {!opcoesGol.draftDisponivel && match.agendamentoId && (
           <p className="text-[10px] text-amber-200/85">Sem sorteio vinculado — só jogadores em campo.</p>
         )}
@@ -615,7 +585,7 @@ export default function JogoDetalhePage() {
       </section>
 
       <section className="rounded-lg border border-emerald-800/60 bg-emerald-950/40 p-3 space-y-2">
-        <h2 className="text-sm font-semibold text-amber-200">9. Vencedor</h2>
+        <h2 className="text-sm font-semibold text-amber-200">8. Vencedor</h2>
         {isAdmin ? (
           <div className="flex flex-wrap gap-1.5">
             {[fieldA, fieldB].map((idx) => {
@@ -668,6 +638,37 @@ export default function JogoDetalhePage() {
           </p>
         )}
       </section>
+
+      {isAdmin && (
+        <section className="rounded-lg border border-amber-900/40 bg-amber-950/15 p-3 space-y-2">
+          <h2 className="text-sm font-semibold text-amber-200">9. Salvar detalhes</h2>
+          <p className="text-[10px] text-emerald-100/75">
+            Duração, nomes e placar só vão ao servidor ao salvar. Gols, cartões e vencedor salvam ao
+            registrar.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs text-emerald-200/90">
+              Min
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={formDuration}
+                onChange={(e) => setFormDuration(Number(e.target.value) || 1)}
+                className="ml-1 w-12 rounded border border-emerald-800 bg-pitch-950 px-1 py-0.5 text-white"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={savingDetails}
+              onClick={() => void salvarDetalhesPartida()}
+              className="w-full rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-medium text-pitch-950 hover:bg-amber-400 disabled:opacity-50 sm:w-auto"
+            >
+              {savingDetails ? "Salvando…" : "Salvar alterações"}
+            </button>
+          </div>
+        </section>
+      )}
 
       {isAdmin && (
         <button
