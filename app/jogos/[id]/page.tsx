@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { MatchTimers } from "@/components/MatchTimers";
+import { MatchVoiceInput } from "@/components/MatchVoiceInput";
 import { Stars } from "@/components/Stars";
 import type { AppDataClient } from "@/lib/client-types";
 import {
@@ -125,6 +126,21 @@ export default function JogoDetalhePage() {
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     return { emCampo, outrosNoRacha: [] as Player[], goleiros, draftDisponivel: false };
   }, [data, match]);
+
+  const goalPlayersForVoice = useMemo(() => {
+    const ids = new Set<string>();
+    const list: Player[] = [];
+    for (const p of [
+      ...opcoesGol.emCampo,
+      ...opcoesGol.outrosNoRacha,
+      ...opcoesGol.goleiros,
+    ]) {
+      if (ids.has(p.id)) continue;
+      ids.add(p.id);
+      list.push(p);
+    }
+    return list;
+  }, [opcoesGol]);
 
   const formPlacarEmpate = useMemo(() => {
     const a = formPlacar0.trim() === "" ? null : Number(formPlacar0);
@@ -276,6 +292,28 @@ export default function JogoDetalhePage() {
           </p>
         )}
       </section>
+
+      {isAdmin && (
+        <MatchVoiceInput
+          goalPlayers={goalPlayersForVoice}
+          yellowPlayers={allInMatch()}
+          teamNameA={formTeamNameA.trim() || match.teams[fieldA]?.name || ""}
+          teamNameB={formTeamNameB.trim() || match.teams[fieldB]?.name || ""}
+          onConfirmGoal={async (playerId) => patch({ addGoal: { scorerId: playerId } })}
+          onConfirmYellow={async (playerId) => {
+            if (match.cartoesAmarelos.includes(playerId)) {
+              alert("Este jogador já tem cartão amarelo.");
+              return false;
+            }
+            return patch({ addCartaoAmarelo: { playerId } });
+          }}
+          onConfirmScore={async (scoreA, scoreB) => {
+            setFormPlacar0(String(scoreA));
+            setFormPlacar1(String(scoreB));
+            return patch({ placarField0: scoreA, placarField1: scoreB });
+          }}
+        />
+      )}
 
       <MatchTimers
         matchId={match.id}
