@@ -540,7 +540,8 @@ export function rankTeams(
 
 
 export function rankGoalkeepersMostConceded(
-  data: RankData
+  data: RankData,
+  options?: { matches?: Match[] }
 ): GoalkeeperLeakRow[] {
 
   const rows = new Map<string, GoalkeeperLeakRow>();
@@ -565,7 +566,7 @@ export function rankGoalkeepersMostConceded(
 
 
 
-  const rankedMatches = matchesCountedInRanking(data);
+  const rankedMatches = options?.matches ?? matchesCountedInRanking(data);
 
   for (const m of rankedMatches) {
     if (!m.agendamentoId) continue;
@@ -631,5 +632,16 @@ export function rankGoalkeepersMostConceded(
 
   });
 
+}
+
+export function rankGoalkeepersForAgendamento(
+  data: RankData,
+  agendamentoId: string
+): GoalkeeperLeakRow[] {
+  const agendamentos = data.agendamentos ?? [];
+  const ag = agendamentos.find((a) => a.id === agendamentoId);
+  if (ag && !agendamentoCountsForRanking(ag.date)) return [];
+  const matches = data.matches.filter((m) => m.agendamentoId === agendamentoId);
+  return rankGoalkeepersMostConceded(data, { matches }).filter((r) => r.games > 0);
 }
 

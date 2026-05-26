@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Stars } from "@/components/Stars";
-import {
-  agendamentoCountsForRanking,
-  DEFAULT_RACHA_TEAM_NAMES,
-  RANKING_START_DATE,
-} from "@/lib/ranking-defaults";
+import { agendamentoCountsForRanking, RANKING_START_DATE } from "@/lib/ranking-defaults";
 import {
   formatRankPoints,
   POINTS_PER_GOAL,
@@ -15,10 +10,9 @@ import {
 } from "@/lib/scoring";
 import {
   playerPointEvents,
-  rankGoalkeepersMostConceded,
+  rankGoalkeepersForAgendamento,
   rankPlayers,
   rankPlayersForAgendamento,
-  rankTeams,
   rankTeamsForAgendamento,
   sortTeamsByPerformance,
   type PlayerPointEvent,
@@ -29,13 +23,18 @@ import { useMemo, useState } from "react";
 
 type EventFilter = "all" | "gain" | "loss" | PlayerPointEvent["kind"];
 
+function formatAgendamentoOption(a: { date: string; time?: string; title?: string }) {
+  const label = new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR");
+  return `${label}${a.time ? ` · ${a.time}` : ""}${a.title ? ` · ${a.title}` : ""}`;
+}
+
 export default function RankingPage() {
   const { data: session } = useSession();
   const { data, loading, error, refresh } = useAppData();
   const [resetting, setResetting] = useState(false);
   const [detailPlayerId, setDetailPlayerId] = useState("");
   const [eventFilter, setEventFilter] = useState<EventFilter>("all");
-  const [destaqueAgendamentoId, setDestaqueAgendamentoId] = useState("");
+  const [rachaFiltroId, setRachaFiltroId] = useState("");
 
   const isAdmin = session?.user?.role === "admin";
   const safeData = data ?? {
@@ -72,9 +71,7 @@ export default function RankingPage() {
     }
   }
 
-  const players = rankPlayers(rankData);
-  const teams = rankTeams(rankData);
-  const goalkeepersLeak = rankGoalkeepersMostConceded(rankData);
+  const playersAnual = rankPlayers(rankData);
   const allPlayersSorted = useMemo(
     () => [...safeData.players].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     [safeData.players]
@@ -96,8 +93,8 @@ export default function RankingPage() {
 
   const detailTotalPoints = useMemo(() => {
     if (!detailPlayerId) return null;
-    return players.find((r) => r.player.id === detailPlayerId)?.points ?? 0;
-  }, [players, detailPlayerId]);
+    return playersAnual.find((r) => r.player.id === detailPlayerId)?.points ?? 0;
+  }, [playersAnual, detailPlayerId]);
 
   const filteredPointsSum = useMemo(
     () => filteredPointEvents.reduce((s, e) => s + e.points, 0),
@@ -115,26 +112,37 @@ export default function RankingPage() {
     [safeData.agendamentos]
   );
 
-  const partidasNoRachaSelecionado = useMemo(() => {
-    if (!destaqueAgendamentoId) return [];
-    return safeData.matches.filter((m) => m.agendamentoId === destaqueAgendamentoId);
-  }, [safeData.matches, destaqueAgendamentoId]);
+  const partidasNoRacha = useMemo(() => {
+    if (!rachaFiltroId) return [];
+    return safeData.matches.filter((m) => m.agendamentoId === rachaFiltroId);
+  }, [safeData.matches, rachaFiltroId]);
 
-  const rankingJogadoresRacha = useMemo(() => {
-    if (!destaqueAgendamentoId) return [];
-    return rankPlayersForAgendamento(rankData, destaqueAgendamentoId);
-  }, [rankData, destaqueAgendamentoId]);
+  const pontuacaoRacha = useMemo(() => {
+    if (!rachaFiltroId) return [];
+    return rankPlayersForAgendamento(rankData, rachaFiltroId);
+  }, [rankData, rachaFiltroId]);
 
-  const top3Racha = useMemo(() => rankingJogadoresRacha.slice(0, 3), [rankingJogadoresRacha]);
+  const artilheirosRacha = useMemo(() => {
+    if (!rachaFiltroId) return [];
+    return [...rankPlayersForAgendamento(rankData, rachaFiltroId)]
+      .filter((r) => r.goals > 0)
+      .sort((a, b) => {
+        if (b.goals !== a.goals) return b.goals - a.goals;
+        return a.player.name.localeCompare(b.player.name, "pt-BR");
+      });
+  }, [rankData, rachaFiltroId]);
 
-  const melhorTimeRacha = useMemo(() => {
-    if (!destaqueAgendamentoId) return null;
-    return (
-      sortTeamsByPerformance(
-        rankTeamsForAgendamento(rankData, destaqueAgendamentoId)
-      ).find((t) => t.games > 0) ?? null
+  const timesRacha = useMemo(() => {
+    if (!rachaFiltroId) return [];
+    return sortTeamsByPerformance(rankTeamsForAgendamento(rankData, rachaFiltroId)).filter(
+      (t) => t.games > 0
     );
-  }, [rankData, destaqueAgendamentoId]);
+  }, [rankData, rachaFiltroId]);
+
+  const goleirosRacha = useMemo(() => {
+    if (!rachaFiltroId) return [];
+    return rankGoalkeepersForAgendamento(rankData, rachaFiltroId);
+  }, [rankData, rachaFiltroId]);
 
   const rankingStartLabel = new Date(RANKING_START_DATE + "T12:00:00").toLocaleDateString(
     "pt-BR"
@@ -149,8 +157,7 @@ export default function RankingPage() {
         <h1 className="font-display text-xl font-bold text-white">Ranking</h1>
         <p className="mt-1 text-xs text-emerald-100/75">
           Pontuação a partir de {rankingStartLabel}. Gol {POINTS_PER_GOAL} pts · vitória{" "}
-          {POINTS_PER_WIN} pt · amarelo {POINTS_PER_YELLOW} pt. Times:{" "}
-          {DEFAULT_RACHA_TEAM_NAMES.join(", ")}.
+          {POINTS_PER_WIN} pt · amarelo {POINTS_PER_YELLOW} pt.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button
@@ -173,82 +180,21 @@ export default function RankingPage() {
         </div>
       </div>
 
-      <section className="rounded-lg border border-amber-900/35 bg-amber-950/15 p-3">
-        <h2 className="text-sm font-semibold text-amber-200">Destaque do racha</h2>
-        <select
-          value={destaqueAgendamentoId}
-          onChange={(e) => setDestaqueAgendamentoId(e.target.value)}
-          className="mt-2 w-full max-w-xl rounded-lg border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-sm text-white"
-        >
-          <option value="">Selecione um racha…</option>
-          {agendamentosOrdenados.map((a) => (
-            <option key={a.id} value={a.id}>
-              {new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR")}
-              {a.time ? ` · ${a.time}` : ""}
-              {a.title ? ` · ${a.title}` : ""}
-            </option>
-          ))}
-        </select>
-
-        {destaqueAgendamentoId && partidasNoRachaSelecionado.length === 0 && (
-          <p className="mt-2 text-xs text-emerald-200/85">Sem jogos neste racha.</p>
-        )}
-
-        {destaqueAgendamentoId && partidasNoRachaSelecionado.length > 0 && (
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <div>
-              <h3 className="text-xs font-semibold text-amber-200/95">Top 3 jogadores</h3>
-              <ol className="mt-2 space-y-1.5">
-                {top3Racha.length === 0 ? (
-                  <li className="text-xs text-emerald-500/90">Nenhum ponto registrado.</li>
-                ) : (
-                  top3Racha.map((r, i) => (
-                    <li
-                      key={r.player.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-emerald-800/50 bg-pitch-950/40 px-2 py-1.5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-amber-200">{i + 1}º</span>
-                        <span className="text-sm text-white">{r.player.name}</span>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums text-amber-100/95">
-                        {formatRankPoints(r.points)} pts
-                      </span>
-                    </li>
-                  ))
-                )}
-              </ol>
-            </div>
-            <div>
-              <h3 className="text-xs font-semibold text-amber-200/95">Melhor time</h3>
-              {melhorTimeRacha ? (
-                <div className="mt-2 rounded-lg border border-amber-700/40 bg-amber-950/25 px-3 py-2">
-                  <p className="text-base font-semibold text-white">{melhorTimeRacha.name}</p>
-                  <p className="text-xs text-emerald-200/85">
-                    {melhorTimeRacha.wins} vitória{melhorTimeRacha.wins !== 1 ? "s" : ""} ·{" "}
-                    {melhorTimeRacha.games} jogo{melhorTimeRacha.games !== 1 ? "s" : ""}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-emerald-500/90">Sem vitórias registradas.</p>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
       <section>
-        <h2 className="text-sm font-semibold text-amber-200">Melhores jogadores</h2>
+        <h2 className="text-sm font-semibold text-amber-200">
+          Melhores jogadores <span className="font-normal text-emerald-300/80">(Ranking anual)</span>
+        </h2>
         {allPlayersSorted.length === 0 ? (
           <p className="mt-2 text-xs text-emerald-500/90">Nenhum jogador cadastrado.</p>
+        ) : playersAnual.length === 0 ? (
+          <p className="mt-2 text-xs text-emerald-500/90">Nenhum ponto registrado no período.</p>
         ) : (
           <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[32rem] text-left text-xs">
+            <table className="w-full min-w-[24rem] text-left text-xs">
               <thead>
                 <tr className="border-b border-emerald-800/80 text-emerald-400/90">
                   <th className="pb-1 pr-3">#</th>
                   <th className="pb-1 pr-3">Jogador</th>
-                  <th className="pb-1 pr-3">Nível</th>
                   <th className="pb-1 pr-3 text-amber-200/95">Pts</th>
                   <th className="pb-1 pr-3">G</th>
                   <th className="pb-1 pr-3">V</th>
@@ -257,13 +203,10 @@ export default function RankingPage() {
                 </tr>
               </thead>
               <tbody>
-                {players.map((r, i) => (
+                {playersAnual.map((r, i) => (
                   <tr key={r.player.id} className="border-b border-emerald-900/50">
                     <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
                     <td className="py-1.5 pr-3 font-medium text-white">{r.player.name}</td>
-                    <td className="py-1.5 pr-3">
-                      <Stars value={r.player.stars} readOnly />
-                    </td>
                     <td className="py-1.5 pr-3 font-medium tabular-nums text-amber-100/95">
                       {formatRankPoints(r.points)}
                     </td>
@@ -276,6 +219,173 @@ export default function RankingPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-amber-200">Racha</h2>
+          <select
+            value={rachaFiltroId}
+            onChange={(e) => setRachaFiltroId(e.target.value)}
+            className="mt-2 w-full max-w-xl rounded-lg border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-sm text-white"
+          >
+            <option value="">Selecione um racha…</option>
+            {agendamentosOrdenados.map((a) => (
+              <option key={a.id} value={a.id}>
+                {formatAgendamentoOption(a)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {!rachaFiltroId && (
+          <p className="text-xs text-emerald-200/85">Escolha a data do racha para ver as estatísticas.</p>
+        )}
+
+        {rachaFiltroId && partidasNoRacha.length === 0 && (
+          <p className="text-xs text-emerald-200/85">Sem jogos neste racha.</p>
+        )}
+
+        {rachaFiltroId && partidasNoRacha.length > 0 && (
+          <>
+            <div>
+              <h3 className="text-xs font-semibold text-amber-200/95">Pontuação total por jogador</h3>
+              {pontuacaoRacha.length === 0 ? (
+                <p className="mt-2 text-xs text-emerald-500/90">Nenhum ponto registrado.</p>
+              ) : (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full min-w-[20rem] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-emerald-800/80 text-emerald-400/90">
+                        <th className="pb-1 pr-3">#</th>
+                        <th className="pb-1 pr-3">Jogador</th>
+                        <th className="pb-1 pr-3 text-right text-amber-200/95">Pts</th>
+                        <th className="pb-1 pr-3 text-right">G</th>
+                        <th className="pb-1 pr-3 text-right">V</th>
+                        <th className="pb-1 pr-3 text-right">A</th>
+                        <th className="pb-1 text-right">J</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pontuacaoRacha.map((r, i) => (
+                        <tr key={r.player.id} className="border-b border-emerald-900/50">
+                          <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
+                          <td className="py-1.5 pr-3 font-medium text-white">{r.player.name}</td>
+                          <td className="py-1.5 pr-3 text-right font-semibold tabular-nums text-amber-100/95">
+                            {formatRankPoints(r.points)}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.goals}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.wins}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.yellowCards}</td>
+                          <td className="py-1.5 text-right tabular-nums">{r.games}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-amber-200/95">Gols por jogador</h3>
+              {artilheirosRacha.length === 0 ? (
+                <p className="mt-2 text-xs text-emerald-500/90">Nenhum gol registrado.</p>
+              ) : (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full min-w-[14rem] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-emerald-800/80 text-emerald-400/90">
+                        <th className="pb-1 pr-3">#</th>
+                        <th className="pb-1 pr-3">Jogador</th>
+                        <th className="pb-1 text-right">Gols</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {artilheirosRacha.map((r, i) => (
+                        <tr key={r.player.id} className="border-b border-emerald-900/50">
+                          <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
+                          <td className="py-1.5 pr-3 font-medium text-white">{r.player.name}</td>
+                          <td className="py-1.5 text-right font-semibold tabular-nums text-amber-100/95">
+                            {r.goals}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-amber-200/95">Times com mais vitórias</h3>
+              {timesRacha.length === 0 ? (
+                <p className="mt-2 text-xs text-emerald-500/90">Nenhuma vitória registrada.</p>
+              ) : (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full min-w-[14rem] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-emerald-800/80 text-emerald-400/90">
+                        <th className="pb-1 pr-3">#</th>
+                        <th className="pb-1 pr-3">Time</th>
+                        <th className="pb-1 pr-3 text-right">Vitórias</th>
+                        <th className="pb-1 text-right">Jogos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {timesRacha.map((t, i) => (
+                        <tr key={t.name} className="border-b border-emerald-900/50">
+                          <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
+                          <td className="py-1.5 pr-3 font-medium text-white">{t.name}</td>
+                          <td className="py-1.5 pr-3 text-right font-semibold tabular-nums text-amber-100/95">
+                            {t.wins}
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">{t.games}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-amber-200/95">Goleiros (mais vazados)</h3>
+              {goleirosRacha.length === 0 ? (
+                <p className="mt-2 text-xs text-emerald-500/90">Nenhum dado de goleiro neste racha.</p>
+              ) : (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full min-w-[20rem] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-emerald-800/80 text-emerald-400/90">
+                        <th className="pb-1 pr-3">#</th>
+                        <th className="pb-1 pr-3">Goleiro</th>
+                        <th className="pb-1 pr-3 text-right">Jogos</th>
+                        <th className="pb-1 pr-3 text-right">Sofridos</th>
+                        <th className="pb-1 text-right">Média</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {goleirosRacha.map((r, i) => (
+                        <tr key={r.player.id} className="border-b border-emerald-900/50">
+                          <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
+                          <td className="py-1.5 pr-3 font-medium text-white">{r.player.name}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.games}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.goalsConceded}</td>
+                          <td className="py-1.5 text-right tabular-nums">
+                            {r.averageConceded.toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </section>
 
@@ -382,67 +492,6 @@ export default function RankingPage() {
               )}
             </>
           )}
-        </section>
-      )}
-
-      <section>
-        <h2 className="text-sm font-semibold text-amber-200">Melhores times</h2>
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full min-w-[16rem] text-left text-xs">
-            <thead>
-              <tr className="border-b border-emerald-800/80 text-emerald-400/90">
-                <th className="pb-1 pr-3">#</th>
-                <th className="pb-1 pr-3">Time</th>
-                <th className="pb-1 pr-3">Títulos</th>
-                <th className="pb-1">Jogos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teams.map((t, i) => (
-                <tr key={t.name} className="border-b border-emerald-900/50">
-                  <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
-                  <td className="py-1.5 pr-3 font-medium text-white">{t.name}</td>
-                  <td className="py-1.5 pr-3">{t.wins}</td>
-                  <td className="py-1.5">{t.games}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {goalkeepersLeak.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-amber-200">Goleiros (mais vazados)</h2>
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[24rem] text-left text-xs">
-              <thead>
-                <tr className="border-b border-emerald-800/80 text-emerald-400/90">
-                  <th className="pb-1 pr-3">#</th>
-                  <th className="pb-1 pr-3">Goleiro</th>
-                  <th className="pb-1 pr-3">Jogos</th>
-                  <th className="pb-1 pr-3">Sofridos</th>
-                  <th className="pb-1">Média</th>
-                </tr>
-              </thead>
-              <tbody>
-                {goalkeepersLeak.map((r, i) => (
-                  <tr key={r.player.id} className="border-b border-emerald-900/50">
-                    <td className="py-1.5 pr-3 text-emerald-500">{i + 1}</td>
-                    <td className="py-1.5 pr-3 font-medium text-white">{r.player.name}</td>
-                    <td className="py-1.5 pr-3">{r.games}</td>
-                    <td className="py-1.5 pr-3">{r.goalsConceded}</td>
-                    <td className="py-1.5 tabular-nums">
-                      {r.averageConceded.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </section>
       )}
     </div>
