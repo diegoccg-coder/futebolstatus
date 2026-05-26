@@ -33,35 +33,15 @@ export function speechErrorMessage(code: string): string {
     }
     if (isLikelyIOS()) {
       return (
-        "No iPhone, ative: Ajustes → Geral → Teclado → Ativar Ditado. " +
-        "Também: Ajustes → Privacidade e Segurança → Reconhecimento de Fala → Safari ligado. " +
-        "Depois recarregue a página no Safari (não use Chrome)."
+        "No iPhone: Ajustes → Geral → Teclado → Ativar Ditado. " +
+        "Ajustes → Privacidade e Segurança → Reconhecimento de Fala → Safari ligado. " +
+        "Use o Safari (não Chrome), recarregue a página e tente de novo."
       );
     }
-    return "Serviço de voz indisponível neste navegador. Tente Safari ou configure transcrição no servidor.";
+    return "Serviço de voz indisponível neste navegador. Tente o Safari.";
   }
   if (code === "no-speech") {
     return "Nenhuma fala detectada. Toque em Falar, espere 1 segundo e fale o comando.";
   }
   return `Erro ao ouvir (${code}). Tente novamente.`;
-}
-
-export function pickAudioMimeType(): string {
-  if (typeof MediaRecorder === "undefined") return "";
-  const candidates = [
-    "audio/mp4",
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-  ];
-  for (const mime of candidates) {
-    if (MediaRecorder.isTypeSupported(mime)) return mime;
-  }
-  return "";
-}
-
-export function audioFileExtension(mime: string): string {
-  if (mime.includes("mp4")) return "m4a";
-  if (mime.includes("ogg")) return "ogg";
-  return "webm";
 }

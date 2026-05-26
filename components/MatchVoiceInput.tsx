@@ -5,7 +5,7 @@ import {
   parseVoiceCommand,
   type VoiceCommand,
 } from "@/lib/voice-commands";
-import { isLikelyIOS, isStandalonePwa } from "@/lib/voice-environment";
+import { isStandalonePwa } from "@/lib/voice-environment";
 import { useVoiceCapture } from "@/hooks/useVoiceCapture";
 import type { Player } from "@/lib/types";
 import { useCallback, useState } from "react";
@@ -33,8 +33,7 @@ export function MatchVoiceInput({
   onConfirmYellow,
   onConfirmScore,
 }: Props) {
-  const { supported, listening, error, mode, serverTranscribe, listen, stop, setError } =
-    useVoiceCapture();
+  const { supported, listening, error, listen, stop, setError } = useVoiceCapture();
   const [pending, setPending] = useState<PendingConfirm | null>(null);
   const [applying, setApplying] = useState(false);
 
@@ -78,11 +77,6 @@ export function MatchVoiceInput({
     }
   }
 
-  const listeningHint =
-    mode === "recorder"
-      ? "Gravando… Fale o comando (até 6 s). Toque em Parar quando terminar."
-      : "Ouvindo… Fale agora. No iPhone, espere 1 segundo após tocar antes de falar.";
-
   return (
     <section className="rounded-lg border border-sky-900/50 bg-sky-950/25 p-3 space-y-2">
       <h2 className="text-sm font-semibold text-sky-200">Comando por voz</h2>
@@ -96,28 +90,14 @@ export function MatchVoiceInput({
       {isStandalonePwa() && (
         <p className="text-xs text-amber-200/95">
           Abra pelo <strong>Safari</strong> (link na barra de endereço), não pelo ícone da tela
-          inicial — o iPhone bloqueia voz no atalho instalado.
+          inicial.
         </p>
       )}
 
-      {isLikelyIOS() && !serverTranscribe && (
-        <p className="text-xs text-amber-200/95">
-          No iPhone, ative <strong>Ajustes → Geral → Teclado → Ativar Ditado</strong> e{" "}
-          <strong>Privacidade → Reconhecimento de Fala → Safari</strong>. Use o Safari, não o
-          Chrome.
-        </p>
-      )}
-
-      {mode === "recorder" && (
-        <p className="text-[10px] text-sky-200/80">
-          Modo iPhone: grava o áudio e transcreve no servidor (mais estável que voz do navegador).
-        </p>
-      )}
-
-      {!supported && (
+      {!supported && !isStandalonePwa() && (
         <p className="text-xs text-amber-200/90">
-          Comando por voz indisponível neste dispositivo. Configure OPENAI_API_KEY no servidor para
-          transcrição no iPhone.
+          Voz indisponível neste navegador. No iPhone use <strong>Safari</strong> com Ditado ativado
+          em Ajustes → Teclado.
         </p>
       )}
 
@@ -146,7 +126,11 @@ export function MatchVoiceInput({
         )}
       </div>
 
-      {listening && <p className="text-xs text-sky-200/95">{listeningHint}</p>}
+      {listening && (
+        <p className="text-xs text-sky-200/95">
+          Ouvindo… Espere 1 segundo após tocar e fale o comando com clareza.
+        </p>
+      )}
 
       {error && <p className="text-xs text-red-300/95 whitespace-pre-wrap">{error}</p>}
 
