@@ -13,9 +13,9 @@ import {
 
 import {
 
-  POINTS_PER_GOAL,
+  POINTS_PER_ASSIST,
 
-  POINTS_PER_WIN,
+  POINTS_PER_GOAL,
 
   POINTS_PER_YELLOW,
 
@@ -33,7 +33,7 @@ export type PlayerRankRow = {
 
   goals: number;
 
-  wins: number;
+  assists: number;
 
   games: number;
 
@@ -41,7 +41,7 @@ export type PlayerRankRow = {
 
   yellowCards: number;
 
-  /** Total: gol 2 pts, vitória 1 pt, amarelo −1 pt. */
+  /** Total: gol 3 pts, assistência 1 pt, amarelo −1 pt. */
 
   points: number;
 
@@ -59,7 +59,7 @@ export type PlayerPointEvent = {
 
   weekLabel?: string;
 
-  kind: "goal" | "win" | "yellow";
+  kind: "goal" | "assist" | "yellow";
 
   points: number;
 
@@ -134,18 +134,6 @@ function playerOnField(m: Match, playerId: string): boolean {
 
 
 
-function playerWon(m: Match, playerId: string): boolean {
-
-  const w = effectiveWinnerTeamIndex(m);
-
-  if (w === null) return false;
-
-  return m.teams[w]?.playerIds.includes(playerId) ?? false;
-
-}
-
-
-
 function goalkeeperOnMatch(
 
   m: Match,
@@ -184,6 +172,22 @@ function goalCountsForScorer(
 
 }
 
+function assistCountsForPlayer(
+
+  m: Match,
+
+  g: { assistId?: string | null; assistFromBench?: boolean },
+
+  playerId: string
+
+): boolean {
+
+  if (!g.assistId || g.assistId !== playerId) return false;
+
+  return playerOnField(m, playerId) || Boolean(g.assistFromBench);
+
+}
+
 
 
 export function rankPlayers(
@@ -200,7 +204,7 @@ export function rankPlayers(
     map.set(p.id, {
       player: p,
       goals: 0,
-      wins: 0,
+      assists: 0,
       games: 0,
       yellowCards: 0,
       points: 0,
@@ -216,8 +220,6 @@ export function rankPlayers(
       const row = map.get(p.id)!;
 
       row.games += 1;
-
-      if (playerWon(m, p.id)) row.wins += 1;
 
       for (const yid of m.cartoesAmarelos) {
 
@@ -239,6 +241,18 @@ export function rankPlayers(
 
       }
 
+      if (g.assistId) {
+
+        const assister = map.get(g.assistId);
+
+        if (assister && assistCountsForPlayer(m, g, g.assistId)) {
+
+          assister.assists += 1;
+
+        }
+
+      }
+
     }
 
   }
@@ -247,7 +261,7 @@ export function rankPlayers(
 
   for (const row of map.values()) {
 
-    row.points = pointsFromCounts(row.goals, row.wins, row.yellowCards);
+    row.points = pointsFromCounts(row.goals, row.assists, row.yellowCards);
 
   }
 
@@ -255,7 +269,11 @@ export function rankPlayers(
 
   return [...map.values()]
 
-    .filter((r) => r.points > 0 || r.games > 0 || r.goals > 0)
+    .filter(
+
+      (r) => r.points > 0 || r.games > 0 || r.goals > 0 || r.assists > 0
+
+    )
 
     .sort((a, b) => {
 
@@ -263,7 +281,7 @@ export function rankPlayers(
 
       if (b.goals !== a.goals) return b.goals - a.goals;
 
-      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.assists !== a.assists) return b.assists - a.assists;
 
       return a.player.name.localeCompare(b.player.name);
 
@@ -310,28 +328,6 @@ export function playerPointEvents(
 
 
     if (onField && !isGk) {
-
-      if (playerWon(m, playerId)) {
-
-        events.push({
-
-          matchId: m.id,
-
-          date: m.date,
-
-          weekLabel: m.weekLabel,
-
-          kind: "win",
-
-          points: POINTS_PER_WIN,
-
-          label: "Vitória",
-
-        });
-
-      }
-
-
 
       for (const yid of m.cartoesAmarelos) {
 
@@ -393,6 +389,30 @@ export function playerPointEvents(
 
     }
 
+    for (const g of m.goals) {
+
+      if (!g.assistId || g.assistId !== playerId || !player) continue;
+
+      if (!assistCountsForPlayer(m, g, playerId)) continue;
+
+      events.push({
+
+        matchId: m.id,
+
+        date: m.date,
+
+        weekLabel: m.weekLabel,
+
+        kind: "assist",
+
+        points: POINTS_PER_ASSIST,
+
+        label: g.assistFromBench ? "Assistência (substituto)" : "Assistência",
+
+      });
+
+    }
+
   }
 
 
@@ -401,7 +421,7 @@ export function playerPointEvents(
 
     goal: 0,
 
-    win: 1,
+    assist: 1,
 
     yellow: 2,
 

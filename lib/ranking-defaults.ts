@@ -9,7 +9,7 @@ export const DEFAULT_RACHA_TEAM_NAMES = [
 export type DefaultRachaTeamName = (typeof DEFAULT_RACHA_TEAM_NAMES)[number];
 
 /** Rachas a partir desta data entram na pontuação do ranking (YYYY-MM-DD). */
-export const RANKING_START_DATE = "2026-05-18";
+export const RANKING_START_DATE = "2026-06-01";
 
 /**
  * Converte o nome do time no jogo para um dos 4 canônicos, ou null se não for um deles.

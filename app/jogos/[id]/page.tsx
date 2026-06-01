@@ -29,6 +29,7 @@ export default function JogoDetalhePage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [scorerId, setScorerId] = useState("");
+  const [assistId, setAssistId] = useState("");
   const [yellowPick, setYellowPick] = useState("");
   const [formDuration, setFormDuration] = useState(8);
   const [formTeamNameA, setFormTeamNameA] = useState("");
@@ -239,9 +240,20 @@ export default function JogoDetalhePage() {
   async function addGoal(e: React.FormEvent) {
     e.preventDefault();
     if (!scorerId) return;
-    await patch({ addGoal: { scorerId } });
-    setScorerId("");
+    const payload: { scorerId: string; assistId?: string } = { scorerId };
+    if (assistId && assistId !== scorerId) payload.assistId = assistId;
+    const ok = await patch({ addGoal: payload });
+    if (ok) {
+      setScorerId("");
+      setAssistId("");
+    }
   }
+
+  const opcoesAssistencia = useMemo(() => {
+    return [...opcoesGol.emCampo, ...opcoesGol.outrosNoRacha].filter(
+      (p) => p.category !== "goleiro"
+    );
+  }, [opcoesGol]);
 
   async function removeGoal(g: Goal) {
     await patch({ removeGoalId: g.id });
@@ -534,50 +546,85 @@ export default function JogoDetalhePage() {
           <p className="text-[10px] text-amber-200/85">Sem sorteio vinculado — só jogadores em campo.</p>
         )}
         {isAdmin ? (
-          <form onSubmit={addGoal} className="flex flex-wrap items-end gap-2">
-            <select
-              value={scorerId}
-              onChange={(e) => setScorerId(e.target.value)}
-              className="min-w-0 flex-1 rounded border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-xs text-white"
-              required
-            >
-              <option value="">Quem fez o gol</option>
-              <optgroup label="Em campo">
-                {opcoesGol.emCampo.map((p) => {
-                  const tn = teamNameForPlayerOnField(match, p.id);
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                      {tn ? ` · ${tn}` : ""}
-                    </option>
-                  );
-                })}
-              </optgroup>
-              {opcoesGol.outrosNoRacha.length > 0 && (
-                <optgroup label="Substituto">
-                  {opcoesGol.outrosNoRacha.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} · sub
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {opcoesGol.goleiros.length > 0 && (
-                <optgroup label="Goleiros">
-                  {opcoesGol.goleiros.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} · GOL
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <button
-              type="submit"
-              className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-pitch-950 hover:bg-amber-400"
-            >
-              + Gol
-            </button>
+          <form onSubmit={addGoal} className="space-y-2">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="min-w-0 flex-1 block text-xs">
+                <span className="text-emerald-300/90">Artilheiro</span>
+                <select
+                  value={scorerId}
+                  onChange={(e) => setScorerId(e.target.value)}
+                  className="mt-0.5 w-full rounded border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-xs text-white"
+                  required
+                >
+                  <option value="">Quem fez o gol</option>
+                  <optgroup label="Em campo">
+                    {opcoesGol.emCampo.map((p) => {
+                      const tn = teamNameForPlayerOnField(match, p.id);
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                          {tn ? ` · ${tn}` : ""}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                  {opcoesGol.outrosNoRacha.length > 0 && (
+                    <optgroup label="Substituto">
+                      {opcoesGol.outrosNoRacha.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} · sub
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {opcoesGol.goleiros.length > 0 && (
+                    <optgroup label="Goleiros">
+                      {opcoesGol.goleiros.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} · GOL
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </label>
+              <label className="min-w-0 flex-1 block text-xs">
+                <span className="text-emerald-300/90">Assistência (opcional)</span>
+                <select
+                  value={assistId}
+                  onChange={(e) => setAssistId(e.target.value)}
+                  className="mt-0.5 w-full rounded border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-xs text-white"
+                >
+                  <option value="">Sem assistência</option>
+                  <optgroup label="Em campo">
+                    {opcoesGol.emCampo.map((p) => {
+                      const tn = teamNameForPlayerOnField(match, p.id);
+                      return (
+                        <option key={p.id} value={p.id} disabled={p.id === scorerId}>
+                          {p.name}
+                          {tn ? ` · ${tn}` : ""}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                  {opcoesGol.outrosNoRacha.length > 0 && (
+                    <optgroup label="Substituto">
+                      {opcoesGol.outrosNoRacha.map((p) => (
+                        <option key={p.id} value={p.id} disabled={p.id === scorerId}>
+                          {p.name} · sub
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </label>
+              <button
+                type="submit"
+                className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-pitch-950 hover:bg-amber-400"
+              >
+                + Gol
+              </button>
+            </div>
           </form>
         ) : (
           <p className="text-[10px] text-emerald-500/90">Somente admin altera gols.</p>
@@ -589,6 +636,7 @@ export default function JogoDetalhePage() {
           <ul className="space-y-1">
             {match.goals.map((g) => {
               const scorer = playersMap.get(g.scorerId);
+              const assister = g.assistId ? playersMap.get(g.assistId) : null;
               const scorerTeam = teamNameForPlayerOnField(match, g.scorerId);
               const isGk = scorer?.category === "goleiro";
               return (
@@ -604,6 +652,13 @@ export default function JogoDetalhePage() {
                       <span className="text-amber-200/90"> · sub</span>
                     ) : (
                       scorerTeam && <span className="text-emerald-400/90"> · {scorerTeam}</span>
+                    )}
+                    {assister && (
+                      <span className="text-sky-200/90">
+                        {" "}
+                        · ass. {assister.name}
+                        {g.assistFromBench ? " (sub)" : ""}
+                      </span>
                     )}
                   </span>
                   {isAdmin && (

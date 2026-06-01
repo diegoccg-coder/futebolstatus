@@ -166,7 +166,7 @@ export async function PATCH(req: Request, context: Ctx) {
     }
   }
   if (body.addGoal) {
-    const g = body.addGoal as { scorerId: string };
+    const g = body.addGoal as { scorerId: string; assistId?: string | null };
     const scorerId = String(g.scorerId ?? "").trim();
     if (!scorerId) {
       return NextResponse.json({ error: "Artilheiro obrigatório" }, { status: 400 });
@@ -211,10 +211,52 @@ export async function PATCH(req: Request, context: Ctx) {
       scorerFromBench = !field.has(scorerId) ? true : undefined;
     }
 
+    let assistId: string | null =
+      g.assistId != null && String(g.assistId).trim() !== ""
+        ? String(g.assistId).trim()
+        : null;
+    let assistFromBench: boolean | undefined;
+    if (assistId) {
+      if (assistId === scorerId) {
+        return NextResponse.json(
+          { error: "Assistência não pode ser o mesmo jogador do gol" },
+          { status: 400 }
+        );
+      }
+      const assister = registeredPlayerOrNull(db, assistId);
+      if (!assister) {
+        return NextResponse.json(
+          { error: "Assistente precisa ser jogador cadastrado" },
+          { status: 400 }
+        );
+      }
+      if (assister.category === "goleiro") {
+        return NextResponse.json(
+          { error: "Goleiro não pode registrar assistência" },
+          { status: 400 }
+        );
+      }
+      const assistOk = field.has(assistId) || rachaLinha.has(assistId);
+      if (!assistOk) {
+        return NextResponse.json(
+          {
+            error:
+              "Assistente precisa estar em campo nesta partida ou no elenco do racha (sorteio salvo)",
+          },
+          { status: 400 }
+        );
+      }
+      assistFromBench = !field.has(assistId) ? true : undefined;
+    } else {
+      assistId = null;
+    }
+
     const goal: Goal = {
       id: newId(),
       scorerId,
       scorerFromBench,
+      assistId,
+      assistFromBench,
     };
     m.goals.push(goal);
   }

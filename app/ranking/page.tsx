@@ -4,8 +4,8 @@ import Link from "next/link";
 import { agendamentoCountsForRanking, RANKING_START_DATE } from "@/lib/ranking-defaults";
 import {
   formatRankPoints,
+  POINTS_PER_ASSIST,
   POINTS_PER_GOAL,
-  POINTS_PER_WIN,
   POINTS_PER_YELLOW,
 } from "@/lib/scoring";
 import {
@@ -156,8 +156,8 @@ export default function RankingPage() {
       <div>
         <h1 className="font-display text-xl font-bold text-white">Ranking</h1>
         <p className="mt-1 text-xs text-emerald-100/75">
-          Pontuação a partir de {rankingStartLabel}. Gol {POINTS_PER_GOAL} pts · vitória{" "}
-          {POINTS_PER_WIN} pt · amarelo {POINTS_PER_YELLOW} pt.
+          Pontuação a partir de {rankingStartLabel}. Gol {POINTS_PER_GOAL} pts · assistência{" "}
+          {POINTS_PER_ASSIST} pt · amarelo {POINTS_PER_YELLOW} pt.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button
@@ -197,8 +197,8 @@ export default function RankingPage() {
                   <th className="pb-1 pr-3">Jogador</th>
                   <th className="pb-1 pr-3 text-amber-200/95">Pts</th>
                   <th className="pb-1 pr-3">G</th>
-                  <th className="pb-1 pr-3">V</th>
-                  <th className="pb-1 pr-3">A</th>
+                  <th className="pb-1 pr-3">As</th>
+                  <th className="pb-1 pr-3">Am</th>
                   <th className="pb-1">J</th>
                 </tr>
               </thead>
@@ -211,7 +211,7 @@ export default function RankingPage() {
                       {formatRankPoints(r.points)}
                     </td>
                     <td className="py-1.5 pr-3">{r.goals}</td>
-                    <td className="py-1.5 pr-3">{r.wins}</td>
+                    <td className="py-1.5 pr-3">{r.assists}</td>
                     <td className="py-1.5 pr-3">{r.yellowCards}</td>
                     <td className="py-1.5">{r.games}</td>
                   </tr>
@@ -262,8 +262,8 @@ export default function RankingPage() {
                         <th className="pb-1 pr-3">Jogador</th>
                         <th className="pb-1 pr-3 text-right text-amber-200/95">Pts</th>
                         <th className="pb-1 pr-3 text-right">G</th>
-                        <th className="pb-1 pr-3 text-right">V</th>
-                        <th className="pb-1 pr-3 text-right">A</th>
+                        <th className="pb-1 pr-3 text-right">As</th>
+                        <th className="pb-1 pr-3 text-right">Am</th>
                         <th className="pb-1 text-right">J</th>
                       </tr>
                     </thead>
@@ -276,7 +276,7 @@ export default function RankingPage() {
                             {formatRankPoints(r.points)}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums">{r.goals}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.wins}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{r.assists}</td>
                           <td className="py-1.5 pr-3 text-right tabular-nums">{r.yellowCards}</td>
                           <td className="py-1.5 text-right tabular-nums">{r.games}</td>
                         </tr>
@@ -423,7 +423,7 @@ export default function RankingPage() {
                 <option value="gain">Ganhos</option>
                 <option value="loss">Perdas</option>
                 <option value="goal">Gols</option>
-                <option value="win">Vitórias</option>
+                <option value="assist">Assistências</option>
                 <option value="yellow">Amarelos</option>
               </select>
             </label>
