@@ -71,6 +71,9 @@ Mesmo no Supabase, o primeiro admin também é criado automaticamente na migraç
 - `npm run build` / `npm run start` — produção
 - `npm run backup-supabase` — exporta `public.pelada_state` para `backups/supabase/`
 - `npm run restore-supabase -- backups/supabase/pelada_state-latest.json` — restaura backup no Supabase
+- `npm run prepare-import-from-backup` — gera `data/database.json` enxuto (sem fotos) a partir do backup local
+- `npm run migrate-champion-photos` — move fotos do JSON para a tabela `champion_photos` (após rodar o SQL)
+- `npm run strip-photos-json` — remove fotos do JSON no Supabase via API (reduz egress)
 
 ## Backup diário (GitHub Actions)
 

@@ -52,14 +52,38 @@ if (!url || !key) {
 }
 
 const supabase = createClient(url, key);
-const { data, error } = await supabase
-  .from("pelada_state")
-  .select("id, data, updated_at")
-  .eq("id", 1)
-  .single();
+
+let data;
+let error;
+try {
+  const result = await supabase
+    .from("pelada_state")
+    .select("id, data, updated_at")
+    .eq("id", 1)
+    .single();
+  data = result.data;
+  error = result.error;
+} catch (e) {
+  console.error("Erro de conexão com o Supabase:", e instanceof Error ? e.message : String(e));
+  console.error(
+    "\nO projeto provavelmente está restrito (egress estourado).",
+    "Use o backup local em backups/supabase/pelada_state-latest.json",
+    "ou migre para um projeto Supabase novo."
+  );
+  process.exit(1);
+}
 
 if (error) {
-  console.error("Erro ao ler Supabase:", error.message);
+  const msg =
+    error.message ||
+    (typeof error === "object" && error !== null && "status" in error
+      ? `HTTP ${error.status}`
+      : JSON.stringify(error));
+  console.error("Erro ao ler Supabase:", msg);
+  console.error(
+    "\nO projeto provavelmente está restrito (egress estourado).",
+    "Backup local mais recente: backups/supabase/pelada_state-latest.json (26/05/2026, 40 jogos)."
+  );
   process.exit(1);
 }
 

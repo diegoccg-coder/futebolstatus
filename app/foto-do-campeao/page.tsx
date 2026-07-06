@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ChampionPhotosEntry } from "@/lib/types";
 import { useAppData } from "@/lib/useData";
 
 const MAX_IMAGE_SIDE = 1600;
@@ -40,16 +41,18 @@ async function imageFileToOptimizedDataUrl(file: File): Promise<string> {
   if (!ctx) return raw;
   ctx.drawImage(img, 0, 0, w, h);
 
-  // JPEG reduz bastante o tamanho e evita erro de limite no upload.
   return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
 }
 
 export default function FotoDoCampeaoPage() {
   const { data: session } = useSession();
-  const { data, loading, error, refresh } = useAppData();
+  const { data, loading, error } = useAppData();
   const isAdmin = session?.user?.role === "admin";
 
   const [selectedId, setSelectedId] = useState("");
+  const [photoEntry, setPhotoEntry] = useState<ChampionPhotosEntry | null>(null);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosError, setPhotosError] = useState<string | null>(null);
   const [teamUrl, setTeamUrl] = useState<string | null>(null);
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -60,16 +63,38 @@ export default function FotoDoCampeaoPage() {
     [data]
   );
 
-  const syncFromData = useCallback(() => {
-    if (!data || !selectedId) {
+  const loadPhotos = useCallback(async (agendamentoId: string) => {
+    if (!agendamentoId) {
+      setPhotoEntry(null);
       setTeamUrl(null);
       setPlayerUrl(null);
       return;
     }
-    const e = data.championPhotosByAgendamento[selectedId];
-    setTeamUrl(e?.bestTeamPhotoUrl ?? null);
-    setPlayerUrl(e?.bestPlayerPhotoUrl ?? null);
-  }, [data, selectedId]);
+    setPhotosLoading(true);
+    setPhotosError(null);
+    try {
+      const r = await fetch(
+        `/api/champion-photos?agendamentoId=${encodeURIComponent(agendamentoId)}`,
+        { cache: "no-store" }
+      );
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? "Falha ao carregar fotos");
+      }
+      const j = (await r.json()) as { entry: ChampionPhotosEntry | null };
+      const entry = j.entry ?? null;
+      setPhotoEntry(entry);
+      setTeamUrl(entry?.bestTeamPhotoUrl ?? null);
+      setPlayerUrl(entry?.bestPlayerPhotoUrl ?? null);
+    } catch (e) {
+      setPhotosError(e instanceof Error ? e.message : "Erro ao carregar fotos");
+      setPhotoEntry(null);
+      setTeamUrl(null);
+      setPlayerUrl(null);
+    } finally {
+      setPhotosLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!data) return;
@@ -83,8 +108,8 @@ export default function FotoDoCampeaoPage() {
   }, [data, agendamentosSorted, selectedId]);
 
   useEffect(() => {
-    syncFromData();
-  }, [syncFromData]);
+    if (selectedId) void loadPhotos(selectedId);
+  }, [selectedId, loadPhotos]);
 
   async function save(partial: {
     bestTeamPhotoUrl?: string | null;
@@ -113,7 +138,14 @@ export default function FotoDoCampeaoPage() {
         alert(msg);
         return;
       }
-      await refresh();
+      const j = (await r.json()) as { entry?: ChampionPhotosEntry };
+      if (j.entry) {
+        setPhotoEntry(j.entry);
+        setTeamUrl(j.entry.bestTeamPhotoUrl);
+        setPlayerUrl(j.entry.bestPlayerPhotoUrl);
+      } else {
+        await loadPhotos(selectedId);
+      }
     } finally {
       setSaving(false);
     }
@@ -152,9 +184,8 @@ export default function FotoDoCampeaoPage() {
   if (loading) return <p className="text-emerald-200/80">Carregando…</p>;
   if (error || !data) return <p className="text-red-300">{error ?? "Erro"}</p>;
 
-  const entry = selectedId ? data.championPhotosByAgendamento[selectedId] : undefined;
-  const updatedLabel = entry?.updatedAt
-    ? new Date(entry.updatedAt).toLocaleString("pt-BR")
+  const updatedLabel = photoEntry?.updatedAt
+    ? new Date(photoEntry.updatedAt).toLocaleString("pt-BR")
     : null;
 
   return (
@@ -189,6 +220,11 @@ export default function FotoDoCampeaoPage() {
             </select>
           </label>
 
+          {photosLoading && (
+            <p className="text-xs text-emerald-500/90">Carregando fotos deste racha…</p>
+          )}
+          {photosError && <p className="text-sm text-red-300">{photosError}</p>}
+
           {updatedLabel && (
             <p className="text-xs text-emerald-500/90">Última atualização: {updatedLabel}</p>
           )}
@@ -217,7 +253,7 @@ export default function FotoDoCampeaoPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/gif,image/webp"
                       className="sr-only"
-                      disabled={saving || !selectedId}
+                      disabled={saving || !selectedId || photosLoading}
                       onChange={(e) => void onPickTeam(e.target.files?.[0] ?? null)}
                     />
                   </label>
@@ -263,7 +299,7 @@ export default function FotoDoCampeaoPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/gif,image/webp"
                       className="sr-only"
-                      disabled={saving || !selectedId}
+                      disabled={saving || !selectedId || photosLoading}
                       onChange={(e) => void onPickPlayer(e.target.files?.[0] ?? null)}
                     />
                   </label>

@@ -42,7 +42,6 @@ export default function RankingPage() {
     matches: [],
     agendamentos: [],
     draftsByAgendamento: {},
-    championPhotosByAgendamento: {},
     lastDraft: null,
     users: [],
   };

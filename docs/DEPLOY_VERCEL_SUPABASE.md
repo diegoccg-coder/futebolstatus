@@ -8,6 +8,14 @@ Este app guarda **todo o estado** em uma linha JSON (`pelada_state.id = 1`). O l
 2. Vá em **SQL Editor** → **New query**.
 3. Cole e execute o conteúdo completo do arquivo [`supabase/pelada_state.sql`](../supabase/pelada_state.sql) (cria a tabela `public.pelada_state` e o trigger de `updated_at`).
 4. Confira em **Table Editor** se existe a tabela `pelada_state` com colunas `id`, `data`, `created_at`, `updated_at`.
+5. Execute também [`supabase/champion_photos.sql`](../supabase/champion_photos.sql) (fotos do campeão **fora** do JSON principal — reduz egress).
+6. Se o JSON em produção ainda tiver fotos embutidas (~1 MB), rode uma vez:
+
+```bash
+npm run migrate-champion-photos
+```
+
+Isso move as fotos para `champion_photos` e limpa o `pelada_state`. Na próxima visita ao app, a migração também ocorre automaticamente no servidor.
 
 ### Chaves do projeto
 
@@ -77,6 +85,8 @@ Se passar, a Vercel costuma passar também (mesmo `next build`).
 ## 5. Checklist rápido
 
 - [ ] SQL `pelada_state.sql` executado no projeto novo  
+- [ ] SQL `champion_photos.sql` executado (fotos separadas do JSON)  
+- [ ] `migrate-champion-photos` se o JSON em produção ainda tiver fotos grandes  
 - [ ] Variáveis na Vercel (incluindo `NEXTAUTH_URL` = URL real do deploy)  
 - [ ] `import-db` rodado se quiser copiar `database.json`  
 - [ ] Login de produção com usuários que existem no JSON (ou primeiro acesso cria `admin@pelada.local` se não houver usuários)

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth-server";
-import { readDb, writeDb } from "@/lib/store";
+import {
+  readChampionPhotoEntry,
+  upsertChampionPhotoEntry,
+} from "@/lib/champion-photos-store";
+import { readDb } from "@/lib/store";
 
-/** Limite aproximado por imagem (data URL em JSON). */
+/** Limite aproximado por imagem (data URL). */
 const MAX_DATA_URL_LENGTH = 4_500_000;
 
 function validatePhotoUrl(s: string | null): string | null {
@@ -45,9 +49,6 @@ export async function POST(req: Request) {
   }
 
   const db = await readDb();
-  if (!db.championPhotosByAgendamento) {
-    db.championPhotosByAgendamento = {};
-  }
   const exists = db.agendamentos.some((a) => a.id === agendamentoId);
   if (!exists) {
     return NextResponse.json({ error: "Racha não encontrado" }, { status: 404 });
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     bestPlayerPhotoUrl?: string | null;
   };
 
-  const prev = db.championPhotosByAgendamento[agendamentoId] ?? {
+  const prev = (await readChampionPhotoEntry(agendamentoId)) ?? {
     bestTeamPhotoUrl: null as string | null,
     bestPlayerPhotoUrl: null as string | null,
     updatedAt: new Date().toISOString(),
@@ -89,12 +90,12 @@ export async function POST(req: Request) {
     }
   }
 
-  db.championPhotosByAgendamento[agendamentoId] = {
+  const entry = {
     bestTeamPhotoUrl,
     bestPlayerPhotoUrl,
     updatedAt: new Date().toISOString(),
   };
 
-  await writeDb(db);
-  return NextResponse.json({ ok: true });
+  await upsertChampionPhotoEntry(agendamentoId, entry);
+  return NextResponse.json({ ok: true, entry });
 }

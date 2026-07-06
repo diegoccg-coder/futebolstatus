@@ -1,10 +1,13 @@
 import fs from "fs";
 import path from "path";
+import {
+  hasChampionPhotoPayload,
+  migrateLegacyChampionPhotos,
+} from "./champion-photos-store";
 import { createDefaultFinancasGlobais } from "./financas";
 import { migrateAppData } from "./migrate";
 import type { AppData } from "./types";
 import { supabaseAdmin, isSupabaseConfigured } from "./supabase-admin";
-
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "database.json");
 
@@ -34,8 +37,33 @@ function ensureFile(): void {
   }
 }
 
-export async function readDb(): Promise<AppData> {
-  if (isSupabaseConfigured() && supabaseAdmin) {
+function stripChampionPhotos(data: AppData): AppData {
+  return { ...data, championPhotosByAgendamento: {} };
+}
+
+async function finalizeRead(data: AppData, dirty: boolean): Promise<AppData> {
+  const legacyPhotos = data.championPhotosByAgendamento ?? {};
+  const hadLegacyPhotos = hasChampionPhotoPayload(legacyPhotos);
+
+  if (hadLegacyPhotos) {
+    await migrateLegacyChampionPhotos(legacyPhotos);
+    dirty = true;
+  }
+
+  const withoutPhotos = stripChampionPhotos(data);
+
+  if (dirty) {
+    try {
+      await writeDb(withoutPhotos);
+    } catch (e) {
+      console.error("writeDb após migrate:", e);
+    }
+  }
+
+  return withoutPhotos;
+}
+
+export async function readDb(): Promise<AppData> {  if (isSupabaseConfigured() && supabaseAdmin) {
     // Supabase: guarda o estado inteiro do app em um único `jsonb`.
     let rowData: unknown = null;
     const { data: row, error: readError } = await supabaseAdmin
@@ -50,50 +78,35 @@ export async function readDb(): Promise<AppData> {
 
     const parsed = (rowData ?? defaultData) as Partial<AppData>;
     const { data, dirty } = migrateAppData(parsed);
-    if (dirty) {
-      try {
-        await writeDb(data);
-      } catch (e) {
-        console.error("writeDb após migrate:", e);
-      }
-    }
-    return data;
+    return finalizeRead(data, dirty);
   }
-
   // Fallback local: JSON no disco.
   ensureFile();
   const raw = fs.readFileSync(DATA_FILE, "utf-8");
   try {
     const parsed = JSON.parse(raw) as Partial<AppData>;
     const { data, dirty } = migrateAppData(parsed);
-    if (dirty) {
-      await writeDb(data);
-    }
-    return data;
+    return finalizeRead(data, dirty);
   } catch {
     const { data, dirty } = migrateAppData({});
-    if (dirty) {
-      await writeDb(data);
-    }
-    return data;
+    return finalizeRead(data, dirty);
   }
 }
-
 export async function writeDb(data: AppData): Promise<void> {
+  const payload = stripChampionPhotos(data);
+
   if (isSupabaseConfigured() && supabaseAdmin) {
     const { error } = await supabaseAdmin
       .from(SUPA_TABLE)
-      .upsert({ id: SUPA_STATE_ID, data }, { onConflict: "id" });
-    if (error) {
+      .upsert({ id: SUPA_STATE_ID, data: payload }, { onConflict: "id" });    if (error) {
       throw new Error(error.message || "Erro ao gravar no Supabase");
     }
     return;
   }
 
   ensureFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), "utf-8");
 }
-
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }

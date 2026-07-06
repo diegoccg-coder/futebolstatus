@@ -9,7 +9,10 @@
     "lint": "next lint",
     "import-db": "node scripts/import-database-json.mjs",
     "backup-supabase": "node scripts/backup-supabase.mjs",
-    "restore-supabase": "node scripts/restore-supabase-backup.mjs"
+    "restore-supabase": "node scripts/restore-supabase-backup.mjs",
+    "migrate-champion-photos": "node scripts/migrate-champion-photos-out-of-json.mjs",
+    "strip-photos-json": "node scripts/strip-photos-shrink-json.mjs",
+    "prepare-import-from-backup": "node scripts/prepare-import-from-backup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",

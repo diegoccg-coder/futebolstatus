@@ -29,7 +29,6 @@ export async function GET() {
         lastDraft: db.lastDraft,
         draftsByAgendamento: db.draftsByAgendamento,
         agendamentos: db.agendamentos,
-        championPhotosByAgendamento: db.championPhotosByAgendamento ?? {},
         sorteioWorkspace: db.sorteioWorkspace ?? null,
         financasByAgendamento,
         financasGlobais,

@@ -42,7 +42,6 @@ export function useAppData() {
       setData({
         ...j,
         draftsByAgendamento: j.draftsByAgendamento ?? {},
-        championPhotosByAgendamento: j.championPhotosByAgendamento ?? {},
         sorteioWorkspace: j.sorteioWorkspace ?? null,
         financasByAgendamento: j.financasByAgendamento ?? {},
         financasGlobais: j.financasGlobais ?? createDefaultFinancasGlobais(),

@@ -1,6 +1,5 @@
 import type {
   Agendamento,
-  ChampionPhotosEntry,
   FinancasGlobais,
   FinancasHistoricoEntry,
   LastDraft,
@@ -19,7 +18,6 @@ export type AppDataClient = {
   draftsByAgendamento: Record<string, LastDraft>;
   agendamentos: Agendamento[];
   users: UserPublic[];
-  championPhotosByAgendamento: Record<string, ChampionPhotosEntry>;
   sorteioWorkspace: SorteioSharedWorkspace | null;
   financasByAgendamento: Record<string, RachaFinancas>;
   financasGlobais: FinancasGlobais;
