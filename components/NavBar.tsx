@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 const adminLinks = [
   { href: "/jogadores", label: "Jogadores" },
   { href: "/sorteio", label: "Sorteio" },
+  { href: "/registro-de-jogos", label: "Registro de jogos" },
   { href: "/jogos", label: "Jogos" },
   { href: "/historico-de-jogos", label: "Histórico" },
   { href: "/financas", label: "Finanças" },
@@ -19,6 +20,7 @@ const allLinks = [
   { href: "/agenda", label: "Rachas" },
   { href: "/resultados", label: "Resultados" },
   { href: "/ranking", label: "Ranking" },
+  { href: "/ranking-do-racha", label: "Ranking do racha" },
   { href: "/foto-do-campeao", label: "Foto do campeão" },
 ];
 

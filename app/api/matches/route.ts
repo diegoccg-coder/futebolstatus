@@ -70,6 +70,7 @@ export async function POST(req: Request) {
     penaltisConvertidos0: null,
     penaltisConvertidos1: null,
     cartoesAmarelos: [],
+    cartoesVermelhos: [],
   };
   db.matches.unshift(match);
   await writeDb(db);

@@ -37,24 +37,43 @@ function parsePayload(body: unknown): Omit<
   if (!o.slots.every(isValidSlot)) return null;
   if (typeof o.activeSlotIndex !== "number") return null;
   const ai = Math.min(4, Math.max(0, Math.floor(o.activeSlotIndex)));
-  if (o.mode !== "dupla" && o.mode !== "racha") return null;
-  if (o.rachaCount !== 3 && o.rachaCount !== 4) return null;
   const dm = Number(o.durationMinutes);
   if (!Number.isFinite(dm) || dm < 1 || dm > 60) return null;
   if (!Array.isArray(o.selectedIds) || !o.selectedIds.every((x) => typeof x === "string")) {
     return null;
   }
-  if (!Array.isArray(o.teamNames) || !o.teamNames.every((x) => typeof x === "string")) {
-    return null;
+  const mode = o.mode === "dupla" ? "dupla" : o.mode === "racha" ? "racha" : null;
+  if (!mode) return null;
+  const rachaCount = o.rachaCount === 3 ? 3 : o.rachaCount === 4 ? 4 : null;
+  if (!rachaCount) return null;
+  const teamCount = mode === "dupla" ? 2 : rachaCount;
+
+  let teamNamesBySlot: string[][] | null = null;
+  if (Array.isArray(o.teamNamesBySlot) && o.teamNamesBySlot.length === 5) {
+    const ok = o.teamNamesBySlot.every(
+      (row) =>
+        Array.isArray(row) && row.every((x) => typeof x === "string")
+    );
+    if (ok) teamNamesBySlot = o.teamNamesBySlot as string[][];
   }
+  if (!teamNamesBySlot && Array.isArray(o.teamNames) && o.teamNames.every((x) => typeof x === "string")) {
+    const legacy = o.teamNames as string[];
+    teamNamesBySlot = Array.from({ length: 5 }, (_, i) =>
+      i === 0
+        ? legacy
+        : Array.from({ length: teamCount }, (_, j) => `Time ${j + 1}`)
+    );
+  }
+  if (!teamNamesBySlot) return null;
+
   if (typeof o.agendamentoId !== "string") return null;
   return {
     slots: o.slots as SerializedSorteioSlot[],
     activeSlotIndex: ai,
     selectedIds: o.selectedIds,
-    teamNames: o.teamNames,
-    mode: o.mode,
-    rachaCount: o.rachaCount,
+    teamNamesBySlot,
+    mode,
+    rachaCount,
     durationMinutes: Math.round(dm),
     agendamentoId: o.agendamentoId,
   };

@@ -12,6 +12,7 @@ export default withAuth(
       path.startsWith("/financas") ||
       path.startsWith("/admin") ||
       path === "/jogos" ||
+      path === "/registro-de-jogos" ||
       path === "/historico-de-jogos";
 
     if (adminOnly && role !== "admin") {

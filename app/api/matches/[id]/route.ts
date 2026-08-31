@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth-server";
 import {
   fieldPlayerIdsOnMatch,
+  fieldTeamIndexesSafe,
   rachaDraftGoleiroPlayerIds,
   rachaDraftLinhaPlayerIds,
 } from "@/lib/matchUi";
+import { teamNameForGoalParticipant } from "@/lib/match-goal-options";
 import { newId, readDb, writeDb } from "@/lib/store";
 import { sortMatchesForRacha } from "@/lib/jogos-helpers";
 import type { AppData, Goal, Match, MatchTeamSlot } from "@/lib/types";
@@ -142,6 +144,7 @@ export async function PATCH(req: Request, context: Ctx) {
       }
       const eligible = playerIdsEligibleForCards(m);
       m.cartoesAmarelos = m.cartoesAmarelos.filter((id) => eligible.has(id));
+      m.cartoesVermelhos = (m.cartoesVermelhos ?? []).filter((id) => eligible.has(id));
     }
   }
   if (body.championTeamIndex !== undefined) {
@@ -231,18 +234,36 @@ export async function PATCH(req: Request, context: Ctx) {
         );
       }
       if (assister.category === "goleiro") {
-        return NextResponse.json(
-          { error: "Goleiro não pode registrar assistência" },
-          { status: 400 }
-        );
+        if (!rachaGoleiros.has(assistId)) {
+          return NextResponse.json(
+            {
+              error:
+                "Goleiro assistente precisa estar no Gol 1 ou Gol 2 do sorteio salvo deste racha",
+            },
+            { status: 400 }
+          );
+        }
+      } else {
+        const assistOk = field.has(assistId) || rachaLinha.has(assistId);
+        if (!assistOk) {
+          return NextResponse.json(
+            {
+              error:
+                "Assistente precisa estar em campo nesta partida ou no elenco do racha (sorteio salvo)",
+            },
+            { status: 400 }
+          );
+        }
       }
-      const assistOk = field.has(assistId) || rachaLinha.has(assistId);
-      if (!assistOk) {
+      const scorerTeam = teamNameForGoalParticipant(m, scorerId, scorer, drafts);
+      const assisterTeam = teamNameForGoalParticipant(m, assistId, assister, drafts);
+      if (
+        scorerTeam &&
+        assisterTeam &&
+        scorerTeam.localeCompare(assisterTeam, "pt-BR") !== 0
+      ) {
         return NextResponse.json(
-          {
-            error:
-              "Assistente precisa estar em campo nesta partida ou no elenco do racha (sorteio salvo)",
-          },
+          { error: "Assistência só pode ser de jogador do mesmo time do artilheiro" },
           { status: 400 }
         );
       }
@@ -336,6 +357,37 @@ export async function PATCH(req: Request, context: Ctx) {
   if (body.removeCartaoAmarelo !== undefined) {
     const pid = String(body.removeCartaoAmarelo).trim();
     m.cartoesAmarelos = m.cartoesAmarelos.filter((x) => x !== pid);
+  }
+
+  if (body.cartoesVermelhos !== undefined) {
+    const eligible = playerIdsEligibleForCards(m);
+    if (!Array.isArray(body.cartoesVermelhos)) {
+      return NextResponse.json({ error: "cartoesVermelhos inválido" }, { status: 400 });
+    }
+    const next = (body.cartoesVermelhos as unknown[])
+      .map((x) => String(x))
+      .filter((id, i, arr) => eligible.has(id) && arr.indexOf(id) === i);
+    m.cartoesVermelhos = next;
+  }
+  if (body.addCartaoVermelho) {
+    const pid = String((body.addCartaoVermelho as { playerId?: string }).playerId ?? "").trim();
+    if (!pid) {
+      return NextResponse.json({ error: "Jogador obrigatório" }, { status: 400 });
+    }
+    if (!playerIdsEligibleForCards(m).has(pid)) {
+      return NextResponse.json(
+        { error: "Jogador precisa estar em um dos times em campo" },
+        { status: 400 }
+      );
+    }
+    const vermelhos = m.cartoesVermelhos ?? [];
+    if (!vermelhos.includes(pid)) {
+      m.cartoesVermelhos = [...vermelhos, pid];
+    }
+  }
+  if (body.removeCartaoVermelho !== undefined) {
+    const pid = String(body.removeCartaoVermelho).trim();
+    m.cartoesVermelhos = (m.cartoesVermelhos ?? []).filter((x) => x !== pid);
   }
 
   await writeDb(db);

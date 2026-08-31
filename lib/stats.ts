@@ -178,11 +178,21 @@ function assistCountsForPlayer(
 
   g: { assistId?: string | null; assistFromBench?: boolean },
 
-  playerId: string
+  playerId: string,
+
+  player: Player,
+
+  draftsByAgendamento: Record<string, LastDraft>
 
 ): boolean {
 
   if (!g.assistId || g.assistId !== playerId) return false;
+
+  if (player.category === "goleiro") {
+
+    return goalkeeperOnMatch(m, playerId, draftsByAgendamento);
+
+  }
 
   return playerOnField(m, playerId) || Boolean(g.assistFromBench);
 
@@ -245,7 +255,7 @@ export function rankPlayers(
 
         const assister = map.get(g.assistId);
 
-        if (assister && assistCountsForPlayer(m, g, g.assistId)) {
+        if (assister && assistCountsForPlayer(m, g, g.assistId, assister.player, drafts)) {
 
           assister.assists += 1;
 
@@ -393,7 +403,7 @@ export function playerPointEvents(
 
       if (!g.assistId || g.assistId !== playerId || !player) continue;
 
-      if (!assistCountsForPlayer(m, g, playerId)) continue;
+      if (!assistCountsForPlayer(m, g, playerId, player, drafts)) continue;
 
       events.push({
 
@@ -407,7 +417,12 @@ export function playerPointEvents(
 
         points: POINTS_PER_ASSIST,
 
-        label: g.assistFromBench ? "Assistência (substituto)" : "Assistência",
+        label:
+          player.category === "goleiro"
+            ? "Assistência (goleiro)"
+            : g.assistFromBench
+              ? "Assistência (substituto)"
+              : "Assistência",
 
       });
 
@@ -652,6 +667,63 @@ export function rankGoalkeepersMostConceded(
 
   });
 
+}
+
+export type TeamRachaStatsRow = {
+  teamIndex: number;
+  name: string;
+  wins: number;
+  draws: number;
+  losses: number;
+  games: number;
+};
+
+/** Vitórias, empates e derrotas por time do racha (nomes reais do sorteio). */
+export function rankTeamsRachaDetailed(
+  data: RankData,
+  agendamentoId: string
+): TeamRachaStatsRow[] {
+  const draft = data.draftsByAgendamento?.[agendamentoId];
+  const matches = data.matches.filter((m) => m.agendamentoId === agendamentoId);
+  if (!draft || draft.teams.length === 0) return [];
+
+  const rows: TeamRachaStatsRow[] = draft.teams.map((t, i) => ({
+    teamIndex: i,
+    name: t.name,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    games: 0,
+  }));
+
+  for (const m of matches) {
+    const field = fieldTeamIndexesSafe(m);
+    if (field.length < 2) continue;
+    const [iA, iB] = field;
+
+    for (const idx of field) {
+      if (rows[idx]) rows[idx]!.games += 1;
+    }
+
+    if (m.drawResult) {
+      if (rows[iA]) rows[iA]!.draws += 1;
+      if (rows[iB]) rows[iB]!.draws += 1;
+      continue;
+    }
+
+    const winner = effectiveWinnerTeamIndex(m);
+    if (winner === null) continue;
+    const loser = winner === iA ? iB : iA;
+    if (rows[winner]) rows[winner]!.wins += 1;
+    if (rows[loser]) rows[loser]!.losses += 1;
+  }
+
+  return rows.sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (a.losses !== b.losses) return a.losses - b.losses;
+    if (b.draws !== a.draws) return b.draws - a.draws;
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
 }
 
 export function rankGoalkeepersForAgendamento(

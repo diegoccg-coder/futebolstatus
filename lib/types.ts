@@ -64,6 +64,8 @@ export type Match = {
   penaltisConvertidos1: number | null;
   /** Jogadores com cartão amarelo neste jogo (ids). */
   cartoesAmarelos: string[];
+  /** Jogadores com cartão vermelho neste jogo (ids). */
+  cartoesVermelhos: string[];
 };
 
 export type LastDraft = {
@@ -117,7 +119,8 @@ export type SorteioSharedWorkspace = {
   slots: SerializedSorteioSlot[];
   activeSlotIndex: number;
   selectedIds: string[];
-  teamNames: string[];
+  /** Nomes dos times por slot de sorteio (5 entradas, índice 0–4). */
+  teamNamesBySlot: string[][];
   mode: "dupla" | "racha";
   rachaCount: 3 | 4;
   durationMinutes: number;

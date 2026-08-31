@@ -11,6 +11,7 @@
     "backup-supabase": "node scripts/backup-supabase.mjs",
     "restore-supabase": "node scripts/restore-supabase-backup.mjs",
     "migrate-champion-photos": "node scripts/migrate-champion-photos-out-of-json.mjs",
+    "import-champion-photos": "node scripts/import-champion-photos-from-backup.mjs",
     "strip-photos-json": "node scripts/strip-photos-shrink-json.mjs",
     "prepare-import-from-backup": "node scripts/prepare-import-from-backup.mjs"
   },

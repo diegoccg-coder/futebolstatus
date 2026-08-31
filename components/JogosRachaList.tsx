@@ -10,6 +10,8 @@ type Props = {
   onMove?: (matchId: string, direction: "up" | "down") => void;
   onMakeFirst?: (matchId: string) => void;
   onDelete?: (matchId: string) => void;
+  onEdit?: (match: Match) => void;
+  editingId?: string | null;
   emptyMessage?: string;
 };
 
@@ -19,6 +21,8 @@ export function JogosRachaList({
   onMove,
   onMakeFirst,
   onDelete,
+  onEdit,
+  editingId,
   emptyMessage = "Nenhum jogo neste racha.",
 }: Props) {
   if (matches.length === 0) {
@@ -27,8 +31,13 @@ export function JogosRachaList({
 
   return (
     <ul className="divide-y divide-emerald-900/80 rounded-lg border border-emerald-800/60">
-      {matches.map((m, idx) => (
-        <li key={m.id}>
+      {matches.map((m, idx) => {
+        const isEditing = editingId === m.id;
+        return (
+        <li
+          key={m.id}
+          className={isEditing ? "bg-amber-950/30 ring-1 ring-inset ring-amber-700/50" : undefined}
+        >
           <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 flex-1 gap-2">
               <span
@@ -37,6 +46,31 @@ export function JogosRachaList({
               >
                 {idx + 1}
               </span>
+              {onEdit ? (
+                <button
+                  type="button"
+                  onClick={() => onEdit(m)}
+                  className="min-w-0 flex-1 text-left transition hover:text-amber-100"
+                >
+                  <span className="block text-sm font-medium text-white">
+                    {matchHeadline(m)}
+                    {isEditing && (
+                      <span className="ml-2 text-[10px] font-normal text-amber-300">(editando)</span>
+                    )}
+                  </span>
+                  <span className="block text-xs text-emerald-300/90">
+                    {new Date(m.date + "T12:00:00").toLocaleDateString("pt-BR")}
+                    {m.weekLabel ? ` · ${m.weekLabel}` : ""}
+                    {m.teamCount > 2 ? ` · Racha (${m.teamCount})` : ""}
+                    {` · ${m.durationMinutes} min`}
+                    {m.drawResult
+                      ? " · Empate"
+                      : matchWinnerDisplayName(m)
+                        ? ` · ${matchWinnerDisplayName(m)}`
+                        : ""}
+                  </span>
+                </button>
+              ) : (
               <Link
                 href={`/jogos/${m.id}`}
                 className="min-w-0 flex-1 transition hover:text-amber-100"
@@ -54,9 +88,19 @@ export function JogosRachaList({
                       : ""}
                 </span>
               </Link>
+              )}
             </div>
-            {(reorderable || onDelete) && (
+            {(reorderable || onDelete || onEdit) && (
               <div className="flex shrink-0 flex-wrap items-center gap-2 self-start">
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(m)}
+                    className="text-xs text-amber-300/95 hover:text-amber-200"
+                  >
+                    Editar
+                  </button>
+                )}
                 {reorderable && onMove && (
                   <>
                     <button
@@ -101,7 +145,8 @@ export function JogosRachaList({
             )}
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

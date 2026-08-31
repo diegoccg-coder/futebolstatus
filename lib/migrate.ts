@@ -6,6 +6,7 @@ import {
   normalizeFinancasHistoricoFromUnknown,
   normalizeRachaFinancasFromUnknown,
 } from "./financas";
+import { resolveTeamNamesBySlot } from "./sorteio-persist";
 import type {
   Agendamento,
   AppData,
@@ -71,6 +72,7 @@ type LegacyMatch = {
   penaltisConvertidos0?: number | null;
   penaltisConvertidos1?: number | null;
   cartoesAmarelos?: string[];
+  cartoesVermelhos?: string[];
 };
 
 function fallbackSortIndexFromId(id: string): number {
@@ -96,6 +98,7 @@ function normalizeScoringFields(o: LegacyMatch): {
   penaltisConvertidos0: number | null;
   penaltisConvertidos1: number | null;
   cartoesAmarelos: string[];
+  cartoesVermelhos: string[];
   migrated: boolean;
 } {
   let migrated = false;
@@ -141,6 +144,12 @@ function normalizeScoringFields(o: LegacyMatch): {
   } else if (o.cartoesAmarelos !== undefined) {
     migrated = true;
   }
+  let cartoesVermelhos: string[] = [];
+  if (Array.isArray(o.cartoesVermelhos)) {
+    cartoesVermelhos = o.cartoesVermelhos.filter((x) => typeof x === "string" && x.length > 0);
+  } else if (o.cartoesVermelhos !== undefined) {
+    migrated = true;
+  }
   return {
     placarField0,
     placarField1,
@@ -148,6 +157,7 @@ function normalizeScoringFields(o: LegacyMatch): {
     penaltisConvertidos0: pen0,
     penaltisConvertidos1: pen1,
     cartoesAmarelos,
+    cartoesVermelhos,
     migrated,
   };
 }
@@ -490,7 +500,7 @@ export function migrateAppData(parsed: Partial<AppData>): {
   if (rawWs === null) {
     sorteioWorkspace = null;
   } else if (rawWs && typeof rawWs === "object" && !Array.isArray(rawWs)) {
-    const w = rawWs as Partial<SorteioSharedWorkspace>;
+    const w = rawWs as Partial<SorteioSharedWorkspace> & { teamNames?: string[] };
     const slotsOk =
       Array.isArray(w.slots) &&
       w.slots.length === 5 &&
@@ -498,6 +508,11 @@ export function migrateAppData(parsed: Partial<AppData>): {
     const modeOk = w.mode === "dupla" || w.mode === "racha";
     const rachaOk = w.rachaCount === 3 || w.rachaCount === 4;
     const updatedOk = typeof w.updatedAt === "string" && w.updatedAt.length > 0;
+    const teamCount =
+      w.mode === "dupla" ? 2 : w.rachaCount === 3 ? 3 : w.rachaCount === 4 ? 4 : 4;
+  const hasNamesBySlot =
+      Array.isArray(w.teamNamesBySlot) && w.teamNamesBySlot.length === 5;
+    const hasLegacyNames = Array.isArray(w.teamNames);
     if (
       slotsOk &&
       modeOk &&
@@ -505,7 +520,7 @@ export function migrateAppData(parsed: Partial<AppData>): {
       updatedOk &&
       typeof w.activeSlotIndex === "number" &&
       Array.isArray(w.selectedIds) &&
-      Array.isArray(w.teamNames) &&
+      (hasNamesBySlot || hasLegacyNames) &&
       typeof w.durationMinutes === "number" &&
       typeof w.agendamentoId === "string"
     ) {
@@ -513,7 +528,11 @@ export function migrateAppData(parsed: Partial<AppData>): {
         slots: w.slots as SorteioSharedWorkspace["slots"],
         activeSlotIndex: w.activeSlotIndex,
         selectedIds: w.selectedIds.filter((x) => typeof x === "string"),
-        teamNames: w.teamNames.filter((x) => typeof x === "string"),
+        teamNamesBySlot: resolveTeamNamesBySlot(
+          w.teamNamesBySlot,
+          w.teamNames,
+          teamCount
+        ),
         mode: w.mode as "dupla" | "racha",
         rachaCount: w.rachaCount as 3 | 4,
         durationMinutes: w.durationMinutes,
@@ -528,6 +547,7 @@ export function migrateAppData(parsed: Partial<AppData>): {
             ? w.updatedByName
             : undefined,
       };
+      if (!hasNamesBySlot && hasLegacyNames) dirty = true;
     } else {
       sorteioWorkspace = null;
       dirty = true;

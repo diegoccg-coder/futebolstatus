@@ -17,6 +17,11 @@ import {
   teamNameForPlayerOnField,
   teamsByRotation,
 } from "@/lib/matchUi";
+import {
+  assistOptionsForScorer,
+  buildGoalPlayerOptions,
+  formatGoalPlayerLabel,
+} from "@/lib/match-goal-options";
 import type { Goal, Match, Player } from "@/lib/types";
 
 export default function JogoDetalhePage() {
@@ -249,11 +254,22 @@ export default function JogoDetalhePage() {
     }
   }
 
-  const opcoesAssistencia = useMemo(() => {
-    return [...opcoesGol.emCampo, ...opcoesGol.outrosNoRacha].filter(
-      (p) => p.category !== "goleiro"
-    );
-  }, [opcoesGol]);
+  const opcoesGolLista = useMemo(() => {
+    if (!match || !data) return [];
+    return buildGoalPlayerOptions(match, data);
+  }, [match, data]);
+
+  const opcoesAssistencia = useMemo(
+    () => assistOptionsForScorer(opcoesGolLista, scorerId),
+    [opcoesGolLista, scorerId]
+  );
+
+  useEffect(() => {
+    if (!assistId) return;
+    if (!opcoesAssistencia.some((o) => o.player.id === assistId)) {
+      setAssistId("");
+    }
+  }, [assistId, opcoesAssistencia]);
 
   async function removeGoal(g: Goal) {
     await patch({ removeGoalId: g.id });
@@ -552,7 +568,10 @@ export default function JogoDetalhePage() {
                 <span className="text-emerald-300/90">Artilheiro</span>
                 <select
                   value={scorerId}
-                  onChange={(e) => setScorerId(e.target.value)}
+                  onChange={(e) => {
+                    setScorerId(e.target.value);
+                    setAssistId("");
+                  }}
                   className="mt-0.5 w-full rounded border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-xs text-white"
                   required
                 >
@@ -594,28 +613,18 @@ export default function JogoDetalhePage() {
                   value={assistId}
                   onChange={(e) => setAssistId(e.target.value)}
                   className="mt-0.5 w-full rounded border border-emerald-800 bg-pitch-950 px-2 py-1.5 text-xs text-white"
+                  disabled={!scorerId}
                 >
-                  <option value="">Sem assistência</option>
-                  <optgroup label="Em campo">
-                    {opcoesGol.emCampo.map((p) => {
-                      const tn = teamNameForPlayerOnField(match, p.id);
-                      return (
-                        <option key={p.id} value={p.id} disabled={p.id === scorerId}>
-                          {p.name}
-                          {tn ? ` · ${tn}` : ""}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                  {opcoesGol.outrosNoRacha.length > 0 && (
-                    <optgroup label="Substituto">
-                      {opcoesGol.outrosNoRacha.map((p) => (
-                        <option key={p.id} value={p.id} disabled={p.id === scorerId}>
-                          {p.name} · sub
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
+                  <option value="">
+                    {scorerId ? "Sem assistência" : "Selecione o artilheiro primeiro"}
+                  </option>
+                  {opcoesAssistencia.map((o) => (
+                    <option key={o.player.id} value={o.player.id}>
+                      {formatGoalPlayerLabel(o.teamName, o.player.name)}
+                      {o.kind === "substituto" ? " (sub)" : ""}
+                      {o.kind === "goleiro" ? " (GOL)" : ""}
+                    </option>
+                  ))}
                 </select>
               </label>
               <button

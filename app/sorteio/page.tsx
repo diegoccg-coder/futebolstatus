@@ -6,11 +6,16 @@ import { Stars } from "@/components/Stars";
 import { teamsByRotation } from "@/lib/matchUi";
 import {
   buildSerializedSorteioState,
+  defaultTeamNamesForCount,
+  emptyTeamNamesBySlot,
   hydrateDrawSlotsFromStored,
   parseStoredSorteioJson,
+  resolveTeamNamesBySlot,
   serializeSorteioState,
   sharedWorkspaceToSerialized,
+  SORTEIO_SLOT_COUNT,
   SORTEIO_STORAGE_KEY,
+  teamCountFromSorteioMode,
 } from "@/lib/sorteio-persist";
 import {
   assignGoalkeepersToGols,
@@ -21,7 +26,12 @@ import {
   type DrawSlotRow,
 } from "@/lib/sorteio-helpers";
 import { formatAgendamentoLabel, getLatestAgendamento } from "@/lib/agendamentos-ui";
-import { DEFAULT_RACHA_TEAM_NAMES } from "@/lib/ranking-defaults";
+import {
+  DEFAULT_TEAM_NAMING_STARS,
+  defaultTeamNamesForDraw,
+  migrateLegacyColorNamesBySlot,
+  teamNamesFromStarGroup,
+} from "@/lib/team-names";
 import { useAppData } from "@/lib/useData";
 import type { Player, SorteioSharedWorkspace } from "@/lib/types";
 
@@ -43,7 +53,9 @@ export default function SorteioPage() {
   const [mode, setMode] = useState<SorteioMode>("racha");
   const [rachaCount, setRachaCount] = useState<3 | 4>(4);
   const [durationMinutes, setDurationMinutes] = useState(8);
-  const [teamNames, setTeamNames] = useState<string[]>([...DEFAULT_RACHA_TEAM_NAMES]);
+  const [teamNamesBySlot, setTeamNamesBySlot] = useState<string[][]>(() =>
+    emptyTeamNamesBySlot(4)
+  );
   const [drawSlots, setDrawSlots] =
     useState<Array<DrawRunResult | null>>(EMPTY_SLOTS);
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
@@ -58,6 +70,45 @@ export default function SorteioPage() {
   const isAdmin = session?.user?.role === "admin";
 
   const teamCount = mode === "dupla" ? 2 : rachaCount;
+
+  const teamNames = useMemo(
+    () => teamNamesBySlot[activeSlotIndex] ?? defaultTeamNamesForCount(teamCount),
+    [teamNamesBySlot, activeSlotIndex, teamCount]
+  );
+
+  function linhaPlayersFromIds(ids: string[]): Player[] {
+    if (!data) return [];
+    const set = new Set(ids);
+    return data.players.filter(
+      (p) => p.category !== "goleiro" && set.has(p.id)
+    );
+  }
+
+  function selectedLinhaPlayers(): Player[] {
+    return linhaPlayersFromIds([...selected]);
+  }
+
+  function applyTeamNamesFromSerialized(
+    serialized: {
+      teamNamesBySlot?: string[][];
+      teamNames?: string[];
+      mode: "dupla" | "racha";
+      rachaCount: 3 | 4;
+      selectedIds?: string[];
+    },
+    slots: Array<DrawRunResult | null>
+  ) {
+    const tc = teamCountFromSorteioMode(serialized.mode, serialized.rachaCount);
+    const linha = linhaPlayersFromIds(serialized.selectedIds ?? [...selected]);
+    const resolved = resolveTeamNamesBySlot(
+      serialized.teamNamesBySlot,
+      serialized.teamNames,
+      tc
+    );
+    setTeamNamesBySlot(
+      migrateLegacyColorNamesBySlot(resolved, slots, linha, tc)
+    );
+  }
 
   const playersById = useMemo(() => {
     if (!data) return new Map<string, Player>();
@@ -103,14 +154,13 @@ export default function SorteioPage() {
 
   function applySharedWorkspace(ws: SorteioSharedWorkspace, byId: Map<string, Player>) {
     const serialized = sharedWorkspaceToSerialized(ws);
-    setDrawSlots(hydrateDrawSlotsFromStored(serialized, byId));
+    const slots = hydrateDrawSlotsFromStored(serialized, byId);
+    setDrawSlots(slots);
     setActiveSlotIndex(
       Math.min(4, Math.max(0, Number(serialized.activeSlotIndex) || 0))
     );
     setSelected(new Set(serialized.selectedIds ?? []));
-    if (Array.isArray(serialized.teamNames) && serialized.teamNames.length > 0) {
-      setTeamNames(serialized.teamNames);
-    }
+    applyTeamNamesFromSerialized(serialized, slots);
     setMode(serialized.mode === "dupla" ? "dupla" : "racha");
     setRachaCount(serialized.rachaCount === 3 ? 3 : 4);
     if (
@@ -154,14 +204,13 @@ export default function SorteioPage() {
           const raw = localStorage.getItem(SORTEIO_STORAGE_KEY);
           const parsed = parseStoredSorteioJson(raw);
           if (parsed) {
-            setDrawSlots(hydrateDrawSlotsFromStored(parsed, byId));
+            const slots = hydrateDrawSlotsFromStored(parsed, byId);
+            setDrawSlots(slots);
             setActiveSlotIndex(
               Math.min(4, Math.max(0, Number(parsed.activeSlotIndex) || 0))
             );
             setSelected(new Set(parsed.selectedIds ?? []));
-            if (Array.isArray(parsed.teamNames) && parsed.teamNames.length > 0) {
-              setTeamNames(parsed.teamNames);
-            }
+            applyTeamNamesFromSerialized(parsed, slots);
             setMode(parsed.mode === "dupla" ? "dupla" : "racha");
             setRachaCount(parsed.rachaCount === 3 ? 3 : 4);
             if (
@@ -204,7 +253,7 @@ export default function SorteioPage() {
         drawSlots,
         activeSlotIndex,
         selected,
-        teamNames,
+        teamNamesBySlot,
         mode,
         rachaCount,
         durationMinutes,
@@ -239,7 +288,7 @@ export default function SorteioPage() {
     drawSlots,
     activeSlotIndex,
     selectedKey,
-    teamNames,
+    teamNamesBySlot,
     mode,
     rachaCount,
     durationMinutes,
@@ -257,7 +306,7 @@ export default function SorteioPage() {
           drawSlots,
           activeSlotIndex,
           selected,
-          teamNames,
+          teamNamesBySlot,
           mode,
           rachaCount,
           durationMinutes,
@@ -272,7 +321,7 @@ export default function SorteioPage() {
     drawSlots,
     activeSlotIndex,
     selected,
-    teamNames,
+    teamNamesBySlot,
     mode,
     rachaCount,
     durationMinutes,
@@ -286,21 +335,48 @@ export default function SorteioPage() {
   }, [drawSlots, activeSlotIndex]);
 
   useEffect(() => {
-    setTeamNames((prev) => {
-      const labels =
-        teamCount === 2
-          ? DEFAULT_RACHA_TEAM_NAMES.slice(0, 2)
-          : teamCount === 3
-            ? DEFAULT_RACHA_TEAM_NAMES.slice(0, 3)
-            : [...DEFAULT_RACHA_TEAM_NAMES];
-      return labels.map((d, i) => prev[i] ?? d);
+    if (!data) return;
+    const linha = selectedLinhaPlayers();
+    setTeamNamesBySlot((prev) => {
+      return Array.from({ length: SORTEIO_SLOT_COUNT }, (_, slotIdx) => {
+        const slot = drawSlots[slotIdx];
+        if (slot) {
+          return defaultTeamNamesForDraw(slot.teams, linha, teamCount);
+        }
+        return defaultTeamNamesForCount(teamCount);
+      });
     });
   }, [teamCount]);
 
   function setTeamName(i: number, v: string) {
-    setTeamNames((prev) => {
-      const next = [...prev];
-      next[i] = v;
+    setTeamNamesBySlot((prev) => {
+      const next = prev.map((row) => [...row]);
+      const slot = [...(next[activeSlotIndex] ?? defaultTeamNamesForCount(teamCount))];
+      slot[i] = v;
+      next[activeSlotIndex] = slot;
+      return next;
+    });
+  }
+
+  function aplicarNomesDoGrupo(stars: number) {
+    if (!data) return;
+    const result = drawSlots[activeSlotIndex];
+    if (!result) {
+      alert("Faça o sorteio dos times antes de aplicar os nomes pelo grupo.");
+      return;
+    }
+    const linhaMarcados = data.players.filter(
+      (p) => p.category !== "goleiro" && selected.has(p.id)
+    );
+    const names = teamNamesFromStarGroup(
+      result.teams,
+      linhaMarcados,
+      stars,
+      teamCount
+    );
+    setTeamNamesBySlot((prev) => {
+      const next = prev.map((row) => [...row]);
+      next[activeSlotIndex] = names;
       return next;
     });
   }
@@ -377,6 +453,14 @@ export default function SorteioPage() {
       const { slots, filledIndex } = pushDrawFifo(drawSlots, run);
       setDrawSlots(slots);
       setActiveSlotIndex(filledIndex);
+      const linha = data.players.filter(
+        (p) => p.category !== "goleiro" && selected.has(p.id)
+      );
+      setTeamNamesBySlot((prev) => {
+        const next = prev.map((row) => [...row]);
+        next[filledIndex] = defaultTeamNamesForDraw(run.teams, linha, teamCount);
+        return next;
+      });
     } finally {
       setBusy(false);
     }
@@ -404,11 +488,17 @@ export default function SorteioPage() {
       next[i] = null;
       return next;
     });
+    setTeamNamesBySlot((prev) => {
+      const next = prev.map((row) => [...row]);
+      next[i] = defaultTeamNamesForCount(teamCount);
+      return next;
+    });
   }
 
   function clearAllSlots() {
     if (!confirm("Limpar todos os 5 slots?")) return;
     setDrawSlots([...EMPTY_SLOTS]);
+    setTeamNamesBySlot(emptyTeamNamesBySlot(teamCount));
     setActiveSlotIndex(0);
   }
 
@@ -423,8 +513,10 @@ export default function SorteioPage() {
       return;
     }
     const byIndex = [...result.teams].sort((a, b) => a.index - b.index);
+    const slotTeamNames =
+      teamNamesBySlot[activeSlotIndex] ?? defaultTeamNamesForCount(teamCount);
     const teams = byIndex.map((t) => ({
-      name: teamNames[t.index] ?? `Time ${t.index + 1}`,
+      name: slotTeamNames[t.index] ?? `Time ${t.index + 1}`,
       playerIds: t.playerIds,
       rotationOrder: t.rotationOrder,
     }));
@@ -467,6 +559,7 @@ export default function SorteioPage() {
     lastAppliedRemoteAtRef.current = "";
     suppressPersistUntilRef.current = Date.now() + 1500;
     setDrawSlots([...EMPTY_SLOTS]);
+    setTeamNamesBySlot(emptyTeamNamesBySlot(teamCount));
     setSelected(new Set());
     setActiveSlotIndex(0);
     setAgendamentoId("");
@@ -808,7 +901,30 @@ export default function SorteioPage() {
 
           {/* 9. Nomes dos times */}
           <section>
-            <h2 className="text-sm font-semibold text-amber-200">9. Nomes dos times</h2>
+            <h2 className="text-sm font-semibold text-amber-200">
+              9. Nomes dos times — slot #{activeSlotIndex + 1}
+            </h2>
+            <p className="mt-1 text-[10px] text-emerald-400/85">
+              Após o sorteio, os times são nomeados automaticamente pelo grupo{" "}
+              {DEFAULT_TEAM_NAMING_STARS}★ (primeiro jogador desse nível em cada time).
+              Use os botões abaixo para escolher outro grupo.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {gruposEstrelaSelecionados
+                .filter((g) => g.players.length > 0)
+                .map((g) => (
+                  <button
+                    key={g.stars}
+                    type="button"
+                    disabled={!displayResult}
+                    onClick={() => aplicarNomesDoGrupo(g.stars)}
+                    className="rounded-lg border border-emerald-700/60 bg-emerald-950/50 px-2.5 py-1 text-[11px] text-emerald-100 hover:bg-emerald-900/60 disabled:opacity-40"
+                  >
+                    {g.stars}★ ({g.players.length})
+                    {g.stars === DEFAULT_TEAM_NAMING_STARS ? " · padrão" : ""}
+                  </button>
+                ))}
+            </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {Array.from({ length: teamCount }, (_, i) => (
                 <div key={i}>

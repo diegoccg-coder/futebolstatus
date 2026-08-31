@@ -29,6 +29,17 @@ export function displayTeamName(name: string, idx: number): string {
   return name;
 }
 
+/** Nome do time com posição na fila do sorteio (ex.: «2º · Diego»). */
+export function formatTeamLabelWithFila(
+  team: { name: string; rotationOrder: number },
+  idx: number
+): string {
+  const name = displayTeamName(team.name, idx);
+  const order = team.rotationOrder;
+  if (order > 0) return `${order}º · ${name}`;
+  return name;
+}
+
 export function emptyTeams(n: 2 | 3 | 4): MatchTeamSlot[] {
   const labels = DEFAULT_RACHA_TEAM_NAMES.slice(0, n);
   return labels.map((name, i) => ({
