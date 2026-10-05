@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { useAppData } from "@/lib/useData";
 
 const links = [
-  { href: "/participantes", label: "Quem joga" },
   { href: "/agenda", label: "Rachas" },
   { href: "/resultados", label: "Resultados" },
   { href: "/ranking", label: "Ranking" },
@@ -15,9 +14,7 @@ const links = [
 const adminLinks = [
   { href: "/jogadores", label: "Jogadores" },
   { href: "/sorteio", label: "Sorteio" },
-  { href: "/jogos", label: "Jogos" },
-  { href: "/historico-de-jogos", label: "Histórico de jogos" },
-  { href: "/financas", label: "Finanças" },
+  { href: "/registro-de-jogos", label: "Registro de jogos" },
   { href: "/admin/usuarios", label: "Usuários" },
 ];
 

@@ -6,6 +6,17 @@ export default withAuth(
     const path = req.nextUrl.pathname;
     const role = req.nextauth.token?.role as string | undefined;
 
+    const hidden =
+      path === "/" ||
+      path === "/participantes" ||
+      path === "/jogos" ||
+      path === "/historico-de-jogos" ||
+      path.startsWith("/financas");
+
+    if (hidden) {
+      return NextResponse.redirect(new URL("/agenda", req.url));
+    }
+
     const adminOnly =
       path.startsWith("/jogadores") ||
       path.startsWith("/sorteio") ||
@@ -16,7 +27,7 @@ export default withAuth(
       path === "/historico-de-jogos";
 
     if (adminOnly && role !== "admin") {
-      return NextResponse.redirect(new URL("/", req.url));
+      return NextResponse.redirect(new URL("/agenda", req.url));
     }
 
     return NextResponse.next();

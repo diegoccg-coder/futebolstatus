@@ -10,11 +10,11 @@ import { signIn, useSession } from "next-auth/react";
 
 function safeCallbackPath(): string {
 
-  if (typeof window === "undefined") return "/";
+  if (typeof window === "undefined") return "/agenda";
 
-  const raw = new URLSearchParams(window.location.search).get("callbackUrl") || "/";
+  const raw = new URLSearchParams(window.location.search).get("callbackUrl") || "/agenda";
 
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw === "/") return "/agenda";
 
   return raw;
 

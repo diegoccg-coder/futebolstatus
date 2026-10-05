@@ -8,15 +8,10 @@ const adminLinks = [
   { href: "/jogadores", label: "Jogadores" },
   { href: "/sorteio", label: "Sorteio" },
   { href: "/registro-de-jogos", label: "Registro de jogos" },
-  { href: "/jogos", label: "Jogos" },
-  { href: "/historico-de-jogos", label: "Histórico" },
-  { href: "/financas", label: "Finanças" },
   { href: "/admin/usuarios", label: "Usuários" },
 ];
 
 const allLinks = [
-  { href: "/", label: "Início" },
-  { href: "/participantes", label: "Quem joga" },
   { href: "/agenda", label: "Rachas" },
   { href: "/resultados", label: "Resultados" },
   { href: "/ranking", label: "Ranking" },
@@ -38,7 +33,7 @@ export function NavBar() {
     <header className="border-b border-emerald-800/80 bg-pitch-950/90 backdrop-blur-sm sticky top-0 z-50">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-3 py-2">
         <Link
-          href="/"
+          href="/agenda"
           className="font-display text-xl font-bold tracking-tight text-amber-300"
         >
           ⚽ Futebol Status
