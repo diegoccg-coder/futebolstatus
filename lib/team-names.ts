@@ -47,6 +47,25 @@ export function teamNamesFromStarGroup(
   });
 }
 
+/** Nome do time: jogador de 5★ no elenco; se não houver, usa o nome já salvo. */
+export function teamLabelFromStarGroup(
+  playerIds: string[],
+  players: Player[],
+  fallbackName: string,
+  idx: number
+): string {
+  const [derived] = teamNamesFromStarGroup(
+    [{ index: 0, playerIds }],
+    players,
+    DEFAULT_TEAM_NAMING_STARS,
+    1
+  );
+  if (derived && derived !== "Time 1") return derived;
+  const stored = fallbackName.trim();
+  if (stored) return stored;
+  return `Time ${idx + 1}`;
+}
+
 export function defaultTeamNamesForDraw(
   teams: TeamPlayerIds[],
   linePlayers: Player[],

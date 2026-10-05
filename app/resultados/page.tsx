@@ -3,25 +3,65 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  effectiveWinnerTeamIndex,
   fieldTeamIndexesSafe,
   matchScoreLine,
   sortMatchesChronologically,
 } from "@/lib/matchUi";
-import { DEFAULT_RACHA_TEAM_NAMES } from "@/lib/ranking-defaults";
-import { rankTeamsForAgendamento } from "@/lib/stats";
-import type { Match } from "@/lib/types";
+import { rankTeamsRachaDetailed } from "@/lib/stats";
+import { teamLabelFromStarGroup } from "@/lib/team-names";
+import type { Match, MatchTeamSlot, Player } from "@/lib/types";
 import { useAppData } from "@/lib/useData";
 
 const SEM_RACHA = "__sem_racha__";
 
-function matchTeamsLabel(m: Match): string {
+function teamDisplayName(
+  team: { name?: string; playerIds?: string[] } | undefined,
+  idx: number,
+  players: Player[]
+): string {
+  return teamLabelFromStarGroup(
+    team?.playerIds ?? [],
+    players,
+    team?.name ?? "",
+    idx
+  );
+}
+
+function matchTeamsLabel(m: Match, players: Player[]): string {
   const idx = fieldTeamIndexesSafe(m);
   if (idx.length >= 2) {
-    const a = m.teams[idx[0]]?.name ?? "Time 1";
-    const b = m.teams[idx[1]]?.name ?? "Time 2";
+    const a = teamDisplayName(m.teams[idx[0]], idx[0], players);
+    const b = teamDisplayName(m.teams[idx[1]], idx[1], players);
     return `${a} × ${b}`;
   }
-  return m.teams.map((t) => t.name).join(" · ");
+  return m.teams.map((t, i) => teamDisplayName(t, i, players)).join(" · ");
+}
+
+function winsFromMatches(matches: Match[], players: Player[]) {
+  const byIndex = new Map<number, MatchTeamSlot>();
+  for (const m of matches) {
+    m.teams.forEach((t, i) => {
+      const prev = byIndex.get(i);
+      if (!prev || t.playerIds.length > prev.playerIds.length) byIndex.set(i, t);
+    });
+  }
+  const rows = [...byIndex.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([teamIndex, team]) => ({
+      teamIndex,
+      key: String(teamIndex),
+      name: teamDisplayName(team, teamIndex, players),
+      wins: 0,
+    }));
+  const rowByIndex = new Map(rows.map((row) => [row.teamIndex, row]));
+  for (const m of matches) {
+    const winner = effectiveWinnerTeamIndex(m);
+    if (winner === null) continue;
+    const row = rowByIndex.get(winner);
+    if (row) row.wins += 1;
+  }
+  return rows;
 }
 
 export default function ResultadosPage() {
@@ -76,13 +116,32 @@ export default function ResultadosPage() {
 
   const matches = [...matchesFiltered].sort(sortMatchesChronologically);
 
-  const teamStats =
-    selectedId && selectedId !== SEM_RACHA
-      ? rankTeamsForAgendamento(
-          { ...data, agendamentos: data.agendamentos },
-          selectedId
-        )
-      : [];
+  const teamStats = (() => {
+    if (!selectedId || selectedId === SEM_RACHA) return [];
+    const draft = data.draftsByAgendamento[selectedId];
+    const detailed = rankTeamsRachaDetailed(
+      {
+        players: data.players,
+        matches: data.matches,
+        agendamentos: data.agendamentos,
+        draftsByAgendamento: data.draftsByAgendamento,
+      },
+      selectedId
+    );
+    if (draft && detailed.length > 0) {
+      return [...detailed]
+        .sort((a, b) => a.teamIndex - b.teamIndex)
+        .map((row) => {
+          const team = draft.teams[row.teamIndex];
+          return {
+            key: String(row.teamIndex),
+            name: teamDisplayName(team, row.teamIndex, data.players),
+            wins: row.wins,
+          };
+        });
+    }
+    return winsFromMatches(matches, data.players);
+  })();
 
   return (
     <div className="space-y-4">
@@ -127,24 +186,20 @@ export default function ResultadosPage() {
             </select>
           </div>
 
-          {selectedId && selectedId !== SEM_RACHA && (
+          {selectedId && selectedId !== SEM_RACHA && teamStats.length > 0 && (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {DEFAULT_RACHA_TEAM_NAMES.map((name) => {
-                const row = teamStats.find((t) => t.name === name);
-                const wins = row?.wins ?? 0;
-                return (
-                  <div
-                    key={name}
-                    className="rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-2 py-1.5 text-center"
-                  >
-                    <p className="text-xs text-emerald-300/90">{name}</p>
-                    <p className="text-lg font-semibold tabular-nums text-white">{wins}</p>
-                    <p className="text-[10px] text-emerald-500/90">
-                      vitória{wins !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                );
-              })}
+              {teamStats.map((row) => (
+                <div
+                  key={row.key}
+                  className="rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-2 py-1.5 text-center"
+                >
+                  <p className="text-xs text-emerald-300/90">{row.name}</p>
+                  <p className="text-lg font-semibold tabular-nums text-white">{row.wins}</p>
+                  <p className="text-[10px] text-emerald-500/90">
+                    vitória{row.wins !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
 
@@ -164,7 +219,7 @@ export default function ResultadosPage() {
                         {i + 1}º
                       </span>
                       <span className="min-w-0 flex-1 font-medium text-white">
-                        {matchTeamsLabel(m)}
+                        {matchTeamsLabel(m, data.players)}
                       </span>
                       {score ? (
                         <span className="shrink-0 font-semibold tabular-nums text-amber-200">
